@@ -1,0 +1,60 @@
+const T = retransmission delay;
+var accountNum;
+var balance;
+var bankName;
+var head;
+var tail;
+var master;
+var sequenceNum initially 0;
+var responses initially {};
+
+enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
+
+class Reply {
+  string reqID;
+  Outcome outcome;
+  float balance;
+}
+
+event headFailure(newHead) from master:
+    head := newHead;
+
+event tailFailure(newTail) from master:
+    tail := newTail;
+
+event receive("response", reply) from tail:
+    response := responses ∪ reply;
+
+function genReqID:
+    sequenceNum++;
+    return ".".join((bankName, accountNum, sequenceNum));
+
+function getBalance(reqID, accountNum): returns balance
+    reqID = genReqID();
+    repeat
+        if tail = NULL then return ERROR("unavailable");
+        send("getBalance", reqID) to tail;
+
+        wait up to T seconds until (reqID, Processed, balance) ∈ responses;
+            return balance;
+    end
+
+function deposit(amount): returns outcome
+    reqID = genReqID();
+    repeat
+        if head = NULL then return ERROR("unavailable");
+        send("deposit", reqID, amount) to head;
+
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses;
+            return outcome;
+    end
+
+function withdraw(amount): returns outcome
+    reqID = genReqID();
+    repeat
+        if head = NULL then return ERROR("unavailable");
+        send("withdraw", reqID, amount) to head;
+
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses;
+            return outcome;
+    end
