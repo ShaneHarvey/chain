@@ -28,7 +28,59 @@ event successorFailure(newSuccessor) from master:
 	else:	
 		successor = newSuccessor;
 
+event 
 
-function sendPing():
-	send (IP address) to
- 
+function sendPing(): return boolean
+	send (IP address) to master;
+	if SUCCESS:
+		return true;
+	else:
+		return false;
+
+funciton getBalance(reqID, accoutNum): return <reqID, Outcome, balance>
+	// In theory this method should only be called on the Tail server by clients
+	var balance = -1;
+	if history.contains(reqID) != true:
+		balance = getBalance(accountNum);
+		Reply newEntry = Reply(reqID, Processed, balance);
+		history.add(newEntry);
+		return < reqID, Processed, balance >;
+	else:
+		return < reqID, InconsistentWithHistory, balance>
+
+function deposit(reqID, accountNum, amount): return < reqID, Outcome, balance>
+	var balance = -1;
+	if history.contains(reqID) != true:
+		balance = getBalance(accountNum);
+		Reply newEntry = Reply(reqID, Processed, balance);
+		history.add(newEntry);
+		balance = balance + amount;
+		updateBalance(accountNum, balance);
+		return <reqId, Processed, balance>
+	else:
+		Reply obj = history.find(reqID);// response obj
+		if(obj.balance == amount):
+			return <reqID, Processed, balance>
+		else:
+			return <reqID, InconsistentWithHistory, balance>
+
+ function withdraw(reqID, accountNum, amount): return <reqID, Outcome, balance>
+ 	var balance = -1;
+ 	Reply newEntry
+ 	if history.contains(reqID) != true:
+ 		balance = getBalance(accountNum);
+ 		history.add(newEntry);
+ 		if (balance = balance - amount ) > 0:
+ 			updateBalance(accountNum, balance);
+ 			newEntry = Reply(reqID, Processed, balanced);
+ 		else: 
+ 			newEntry = Reply(reqID, InsufficientFunds, balanced);
+ 		
+ 		return newEntry;
+ 	else:
+ 		Reply obj = history.find(reqID);
+ 		if(obj.balance == amount):
+ 			return obj
+ 		else:
+
+ 			return <reqID, InconsistentWithHistory, balance>
