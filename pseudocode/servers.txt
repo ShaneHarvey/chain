@@ -1,0 +1,34 @@
+var isTail; // boolean value
+var isHead; // boolean value
+var master; //used to ping to the clint ever second using UDP 
+var predecessor; // address of server
+var successor; //address of server
+var history initially {};
+var responses initially {};
+
+enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
+
+class Reply {
+  string reqID;
+  Outcome outcome;
+  float balance;
+}
+
+event predecessorFailure(newPredessor) from master:
+	if newPredessor == NULL:
+		isHead = TRUE;
+		//STUFF needs to be added here definitely
+	else:	
+		predecessor = newPredecessor;
+
+event successorFailure(newSuccessor) from master:
+	if newSuccessor = NULL:
+		isTail = TRUE;
+		//STUFF needs to be added here definitely		
+	else:	
+		successor = newSuccessor;
+
+
+function sendPing():
+	send (IP address) to
+ 
