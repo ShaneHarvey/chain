@@ -1,4 +1,5 @@
 var isTail; // boolean value
+
 var isHead; // boolean value
 var master; //used to ping to the clint ever second using UDP 
 var predecessor; // address of server
