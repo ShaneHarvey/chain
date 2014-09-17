@@ -1,84 +1,193 @@
-var isTail; // boolean value
-var isHead; // boolean value
-var master; // address of master
-var predecessor; // address of server
-var successor; //address of server
-var history initially {};
-var responses initially {};
+//TODO: add bankName to master messages
+
+var isHead // boolean true if this server is Head
+var isTail // boolean true if this server is Tail
+var master // address of master
+var predecessor // address of previous server or NULL
+var successor // address of next server or NULL
+var processedUpdates initially {} // Previous deposits/withdrawls/transfers
+var currentlyExtendingChain = False // True when tail is extending the chain
+var sentUpdates initially {} // Updates sent to successor and not yet ACKed
+var currentSYN = 0 // Initial value of request SYN
+var bank // Load from config, stores balance of each account
 
 enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
 
 class Reply {
-  string reqID;
-  Outcome outcome;
-  float balance;
+  string reqID
+  Outcome outcome
+  float balance
 }
 
-event predecessorFailure(newPredessor) from master:
-	predecessor = newPredecessor;
-	// TODO: STUFF needs to be added here definitely
+// This is only called once to join the chain on initialization
+function joinChain():
+    // Ask master to join chain
+    send("join") to master
 
-event successorFailure(newSuccessor) from master:
-	successor = newSuccessor;
-	// TODO: STUFF needs to be added here definitely
+event receiveEndOfSent() from predecessor:
+    // Start acting as tail
+    isTail = true
+    // Tell master "I am new tail"
+    send("newTail") to master
+
+// Only the tail receives this message
+event receiveExtendChain(newTail) from master:
+    // Start logging updates into sentUpdates
+    // And stop adding updates to processedUpdates
+    currentlyExtendingChain = True
+    // Start sending the history to newTail
+    for update in processedUpdates:
+        send("update", update) to newTail
+    // Now send updates that we've received since starting extension to newTail
+    for update in sentUpdates:
+        send("update", update) to newTail
+    send("endOfSent") to newTail
+    // Stop acting as tail
+    currentlyExtendingChain = false
+    isTail = false
+    // ...done????????
+
+event predecessorFailure(newPredecessor) from master:
+    predecessor = newPredecessor
+    // Send acknowledgement to master with SYN of last update
+    send("ACK", currentSYN) to master
+
+event successorFailure(newSuccessor, newSuccessorSYN) from master:
+    successor = newSuccessor
+    // Resend sentUpdates with SYN > newSuccessorSYN to newSuccessor
+    for update in sentUpdates if update.SYN > newSuccessorSYN:
+        send("update", update) to successor
 
 event becomeTail() from master:
-	successor = NULL
-	isTail = TRUE
-	// TODO: STUFF needs to be added here definitely
+    successor = NULL
+    isTail = true
+    if not isHead:
+        // ACK the max SYN in sentUpdates
+        SYN = maxSYN(sentUpdates)
+        send("ACK", SYN) to predecessor
+    // Clear sentUpdates
+    sentUpdates = {}
 
 event becomeHead() from master:
-	predecessor = NULL
-	isHead = TRUE
-	// TODO: STUFF needs to be added here definitely
+    predecessor = NULL
+    isHead = true
 
-function sendPing():
-	send (IP address) to master;
+// The server is operating as Head
+event receiveUpdate(u) from client:
+    // Add SYN to incoming update
+    update = (getNextSYN(), u)
+    // Compute update with reqID, accountNum, and amount from u
+    if update is deposit:
+        response = deposit(reqID, accountNum, amount)
+    else if update is withdrawl:
+        response = withdrawl(reqID, accountNum, amount)
+    // Add u (update without SYN) to processedUpdates
+    processedUpdates.add(u)
+    if isTail:
+        // Head is also Tail here (no need to ACK)
+        // Respond to client
+        send("response", response) to client
+    else:
+        // If we are not the tail forward the update along the chain
+        sentUpdates.append(update)
+        send("update", update) to successor
 
-funciton getBalance(reqID, accoutNum): return <reqID, Outcome, balance>
-	// In theory this method should only be called on the Tail server by clients
-	var balance = -1;
-	if history.contains(reqID) != true:
-		balance = getBalance(accountNum);
-		Reply newEntry = Reply(reqID, Processed, balance);
-		history.add(newEntry);
-		return < reqID, Processed, balance >;
-	else:
-		return < reqID, InconsistentWithHistory, balance>
+// The server is NOT operating as Head
+// Server receives a forwarded request from predecessor
+event receiveUpdate(SYN, u) from predecessor:
+    // Update this server's SYN with the last update it received
+    currentSYN = max(currentSYN, SYN);
+    if update is deposit:
+        response = deposit(reqID, accountNum, amount)
+    else if update is withdrawl:
+        response = withdrawl(reqID, accountNum, amount)
+    // Add u (update without SYN) to processedUpdates
+    processedUpdates.add(u)
+    if isTail:
+        if currentlyExtendingChain:
+            // We start logging Tail's updates during extension
+            sentUpdates.append(update)
+
+        // Send ACK to predecessor
+        send("ACK", SYN) to predecessor
+        // Respond to client
+        send("response", response) to client
+    else:
+        // If we are not the tail forward the update along the chain
+        sentUpdates.append(update)
+        send("update", update) to successor
+
+event receiveACK(SYN) from successor:
+    // Remove updates from "sentUpdates" that have sequenceNum <= SYN
+    for update in sentUpdates if update.SYN <= SYN:
+        sentUpdates.remove(update)
+
+    if not isHead:
+        // Continnue to forward ACK to predecessor
+        send("ACK", SYN) to predecessor
+
+event receiveQuery(q) from client:
+    // Only Tail will receive this message
+    if not isTail:
+        return
+    if q is getBalance:
+        // Only process getBalance queries
+        response = getBalance(reqID, accoutNum)
+        send("response", response) to client
+
+function getNextSYN():
+    return SYN++
+
+thread sendPing():
+    // Thread sends ping to master
+    send("ping", IP address) to master
+    // Thread sleeps for 1 second
+    sleep(1)
+
+function getBalance(reqID, accoutNum): return <reqID, Outcome, balance>
+    // In theory this method should only be called on the Tail server by clients
+    var balance = -1
+    if history.contains(reqID) != true:
+        balance = getBalance(accountNum)
+        Reply newEntry = Reply(reqID, Processed, balance)
+        history.add(newEntry)
+        return < reqID, Processed, balance >
+    else:
+        return < reqID, InconsistentWithHistory, balance>
 
 function deposit(reqID, accountNum, amount): return < reqID, Outcome, balance>
-	var balance = -1;
-	if history.contains(reqID) != true:
-		balance = getBalance(accountNum);
-		Reply newEntry = Reply(reqID, Processed, balance);
-		history.add(newEntry);
-		balance = balance + amount;
-		updateBalance(accountNum, balance);
-		return <reqId, Processed, balance>
-	else:
-		Reply obj = history.find(reqID);// response obj
-		if(obj.balance == amount):
-			return <reqID, Processed, balance>
-		else:
-			return <reqID, InconsistentWithHistory, balance>
+    var balance = -1
+    if history.contains(reqID) != true:
+        balance = getBalance(accountNum)
+        Reply newEntry = Reply(reqID, Processed, balance)
+        history.add(newEntry)
+        balance = balance + amount
+        updateBalance(accountNum, balance)
+        return <reqId, Processed, balance>
+    else:
+        Reply obj = history.find(reqID)// response obj
+        if(obj.balance == amount):
+            return <reqID, Processed, balance>
+        else:
+            return <reqID, InconsistentWithHistory, balance>
 
  function withdraw(reqID, accountNum, amount): return <reqID, Outcome, balance>
- 	var balance = -1;
- 	Reply newEntry
- 	if history.contains(reqID) != true:
- 		balance = getBalance(accountNum);
- 		history.add(newEntry);
- 		if (balance = balance - amount ) > 0:
- 			updateBalance(accountNum, balance);
- 			newEntry = Reply(reqID, Processed, balanced);
- 		else:
- 			newEntry = Reply(reqID, InsufficientFunds, balanced);
+    var balance = -1
+    Reply newEntry
+    if history.contains(reqID) != true:
+        balance = getBalance(accountNum)
+        history.add(newEntry)
+        if (balance = balance - amount ) > 0:
+            updateBalance(accountNum, balance)
+            newEntry = Reply(reqID, Processed, balanced)
+        else:
+            newEntry = Reply(reqID, InsufficientFunds, balanced)
 
- 		return newEntry;
- 	else:
- 		Reply obj = history.find(reqID);
- 		if(obj.balance == amount):
- 			return obj
- 		else:
+        return newEntry
+    else:
+        Reply obj = history.find(reqID)
+        if(obj.balance == amount):
+            return obj
+        else:
 
- 			return <reqID, InconsistentWithHistory, balance>
+            return <reqID, InconsistentWithHistory, balance>
