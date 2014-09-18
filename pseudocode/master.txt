@@ -1,5 +1,5 @@
 var banks = list of bankNames // From config
-var clients[bankName][list of clients] // bankName maps to list of bank's clients
+var clients = list of clients // From config
 var chain[bankName][serverChain initially from config] // bankName maps to that bank's chain of servers
 
 
@@ -9,45 +9,61 @@ event receiveJoinChain(bankName) from newTail:
 event receiveNewTail(bankName) from newTail:
     // Append newTail to the bank's chain
     chain[bankName].append(newTail)
-    // Broadcast Bankame's clients of the newTail
-    send("newTail", newTail) to clients[bankName]
+    // Broadcast the enw tail to all clients
+    send("newTail", newTail) to clients
 
 event receivePing(bankName) from server:
     chain[bankName][server].pingCount++
 
 thread detectFailure():
     // Thread checks ping counts every 5 seconds
+    // This can handle multiple failures in one 5 second period
     for bankName in banks:
-        for server in chain[bankName]:
-            // TODO: FIXME to handle multiple server failure
-            if server.pingCount == 0:
-                // A server has failed!
-                // Check if server is Head, Tail, or internal server
-                if isHead(server):
-                    newHead = chain[bankName].index(server) - 1
-                    // Tell H+ it is the new Head
-                    send("becomeHead") to newHead
-                    // Broadcast newHead to clients
-                    send("newHead", newHead) to clients[bankName]
-                else if isTail(server):
-                    newTail= chain[bankName].index(server) + 1
-                    // Tell predecessor of server it is the newTail
-                    send("becomeTail") to newTail
-                    // Broadcast newTail to clients
-                    send("newTail", newTail) to clients[bankName]
-                else:
-                    // Internal server failure
-                    newPredecessor = chain[bankName].index(server) - 1
-                    newSuccessor = chain[bankName].index(server) + 1
-                    // Tell successor that his predecessor failed
-                    send("predecessorFailure", newPredecessor) to newSuccessor
-                    // Wait for response from newSuccessor
-                    newSuccessorSYN = read("ACK") from newSuccessor
-                    // Tell predecessor that his successor failed with SYN
-                    send("successorFailure", newSuccessor, newSuccessorSYN) to newPredecessor
+        tailIndex = len(chain[bankName]) - 1 // index of the current tail
+        aliveServers = []
+        failedServers = []
+        for i in range(chain[bankName]):
+            if chain[bankName][i].pingCount != 0:
+                // This server is alive
+                aliveServers.append(i)
+            else:
+                // Server failed!
+                failedServers.append(i)
 
-                // Remove server from the chain
-                chain[bankName].remove(server)
+        // Handle crashed head or tail
+        if aliveServers[0] != 0:
+            // Previous Head crashed
+            newHead = chain[bankName][aliveServers[0]]
+            // Tell H+ it is the new Head
+            send("becomeHead") to newHead
+            // Broadcast newHead to all clients
+            send("newHead", newHead, bankName) to clients
+        if aliveServers[-1] != tailIndex:
+            // Previous Tail failed
+            newTail= chain[bankName][aliveServers[-1]]
+            // Tell predecessor of server it is the newTail
+            send("becomeTail") to newTail
+            // Broadcast newTail to all clients
+            send("newTail", newTail, bankName) to clients
+
+        // Handle crashes in the chain
+        prevIndex = aliveServers[0]
+        for index in aliveServers[1:]:
+            if prevIndex != index -1:
+                // Internal server failure
+                newPredecessor = chain[bankName][prevIndex]
+                newSuccessor = chain[bankName][index]
+                // Tell successor that his predecessor failed
+                send("predecessorFailure", newPredecessor) to newSuccessor
+                // Wait for response from newSuccessor
+                newSuccessorSYN = read("ACK") from newSuccessor
+                // Tell predecessor that his successor failed with SYN
+                send("successorFailure", newSuccessor, newSuccessorSYN) to newPredecessor
+
+        // Remove failed servers from the chain
+        for index in failedServers:
+            chain[bankName].remove(index)
+
     // Sleep for 5 seconds
     sleep(5)
 
