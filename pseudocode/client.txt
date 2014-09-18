@@ -14,12 +14,12 @@ event tailFailure(newTail) from master:
     BankNameTails[bankName] = newTail
 
 event receive("response", reply) from tail:
-    response := responses ∪ reply
+    responses.add(reply)
 
 //function generates a unique request identification
 function genReqID(accountNum, bankName):
     sequenceNum++
-    return ".".join((bankName, accountNum, sequenceNum.clientID))//makes a string dot seperated with the values 
+    return (bankName, accountNum, clientID, sequenceNum)
 
 //get the IP address and port number of the tail of the Bank specified by bankName
 function getBankTail(bankName):
