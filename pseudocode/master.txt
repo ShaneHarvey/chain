@@ -1,9 +1,10 @@
 var banks = list of bankNames // From config
 var clients = list of clients // From config
 var chain[bankName][serverChain initially from config] // bankName maps to that bank's chain of servers
-
+var extendMutex[bankName] // Lock to prevent multiple servers from joining a chain at once
 
 event receiveJoinChain(bankName) from newTail:
+    aquire(extendMutex[bankName]) // Blocking acquire of this bank's lock
     send("extendChain", newTail) to getTail(bankName)
 
 event receiveNewTail(bankName) from newTail:
@@ -11,6 +12,7 @@ event receiveNewTail(bankName) from newTail:
     chain[bankName].append(newTail)
     // Broadcast the enw tail to all clients
     send("newTail", newTail) to clients
+    release(extendMutex[bankName]) // Release the lock
 
 event receivePing(bankName) from server:
     chain[bankName][server].pingCount++
