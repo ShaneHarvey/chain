@@ -34,10 +34,13 @@ event receiveExtendChain(newTail) from master:
     // Start logging updates into sentUpdates
     // And stop adding updates to processedUpdates
     currentlyExtendingChain = True
-    // Start sending the history to newTail
-    for update in processedUpdates:
-        send("update", update) to newTail
+    // Sent the current bank data to the new tail
+    send("bankData", bank) to newTail
+    // Start sending the old updates to newTail
+    for oldUpdate in processedUpdates:
+        send("storeUpdate", oldUpdate) to newTail
     // Now send updates that we've received since starting extension to newTail
+    // These updates will be processed by the new tail
     for update in sentUpdates:
         send("update", update) to newTail
     send("endOfSent") to newTail
@@ -46,18 +49,28 @@ event receiveExtendChain(newTail) from master:
     isTail = false
     // ...done????????
 
-event predecessorFailure(newPredecessor) from master:
+event receiveBankData(bankData) from predecessor:
+    // This server is extending the chain
+    // Initialize our bank with the tail's current bank info
+    bank = bankData
+
+event receiveStoreUpdate(oldUpdate) from predecessor:
+    // This server is extending the chain
+    // Just add old updates to this servers history
+    processedUpdates.add(oldUpdate)
+
+event receivePredecessorFailure(newPredecessor) from master:
     predecessor = newPredecessor
     // Send acknowledgement to master with SYN of last update
     send("ACK", currentSYN, bankName) to master
 
-event successorFailure(newSuccessor, newSuccessorSYN) from master:
+event receiveSuccessorFailure(newSuccessor, newSuccessorSYN) from master:
     successor = newSuccessor
     // Resend sentUpdates with SYN > newSuccessorSYN to newSuccessor
     for update in sentUpdates if update.SYN > newSuccessorSYN:
         send("update", update) to successor
 
-event becomeTail() from master:
+event receiveBecomeTail() from master:
     successor = NULL
     isTail = true
     if not isHead:
@@ -67,7 +80,7 @@ event becomeTail() from master:
     // Clear sentUpdates
     sentUpdates = {}
 
-event becomeHead() from master:
+event receiveBecomeHead() from master:
     predecessor = NULL
     isHead = true
 

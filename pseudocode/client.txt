@@ -6,14 +6,14 @@ var clientID //Unique identifier for the clients loaded from the configuration f
 var BankMapTails(bankName, TailIPAddress) //bankName is the key and the value will be the IP Address of the tail
 var BankMapHeads(bankName, HeadIPAddress) //bankName is the key and the value will be the IP Address of the head
 
-event headFailure(newHead, bankName) from master:
+event receiveHeadFailure(newHead, bankName) from master:
     BankNameHeads[bankName] = newHead
 
 
-event tailFailure(newTail) from master:
+event receiveTailFailure(newTail) from master:
     BankNameTails[bankName] = newTail
 
-event receive("response", reply) from tail:
+event receiveResponse("response", reply) from tail:
     responses.add(reply)
 
 //function generates a unique request identification
