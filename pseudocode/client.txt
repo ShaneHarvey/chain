@@ -1,60 +1,64 @@
-const T = retransmission delay;
-var accountNum;
-var balance;
-var bankName;
-var head;
-var tail;
-var master;
-var sequenceNum initially 0;
-var responses initially {};
+const T = retransmission delay
+var master // loaded from the configuration file
+var sequenceNum initially 0 
+var responses initially {}
+var clientID //Unique identifier for the clients loaded from the configuration file
+var BankMapTails(bankName, TailIPAddress) //bankName is the key and the value will be the IP Address of the tail
+var BankMapHeads(bankName, HeadIPAddress) //bankName is the key and the value will be the IP Address of the head
 
-enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
+event headFailure(newHead, bankName) from master:
+    BankNameHeads[bankName] = newHead
 
-class Reply {
-  string reqID;
-  Outcome outcome;
-  float balance;
-}
-
-event headFailure(newHead) from master:
-    head := newHead;
 
 event tailFailure(newTail) from master:
-    tail := newTail;
+    BankNameTails[bankName] = newTail
 
 event receive("response", reply) from tail:
-    response := responses ∪ reply;
+    response := responses ∪ reply
 
-function genReqID:
-    sequenceNum++;
-    return ".".join((bankName, accountNum, sequenceNum));
+//function generates a unique request identification
+function genReqID(accountNum, bankName):
+    sequenceNum++
+    return ".".join((bankName, accountNum, sequenceNum.clientID))//makes a string dot seperated with the values 
 
-function getBalance(reqID, accountNum): returns balance
-    reqID = genReqID();
+//get the IP address and port number of the tail of the Bank specified by bankName
+function getBankTail(bankName):
+    return BankMapTails[bankName]
+
+//get the IP address and port number of the head of the Bank specified by bankName
+function getBankHead(bankName):
+    return BankMapHeads[bankName]
+
+function getBalance(accountNum, bankName): returns balance
+    var reqID = genReqID(accountNun, bankName)//generate the requestID
+    var tail = getBankTail(bankName)
     repeat
-        if tail = NULL then return ERROR("unavailable");
-        send("getBalance", reqID) to tail;
+        //set the Tail of the bankName
+        if tail = NULL then return ERROR("unavailable")
+        send("getBalance", reqID) to tail
 
-        wait up to T seconds until (reqID, Processed, balance) ∈ responses;
-            return balance;
+        wait up to T seconds until (reqID, Processed, balance) ∈ responses
+            return balance
     end
 
-function deposit(amount): returns outcome
-    reqID = genReqID();
+function deposit(accountNum, bankName, amount): returns outcome
+    var reqID = genReqID(accountNum, bankName)
+    var head = getBankHead(bankName)
     repeat
-        if head = NULL then return ERROR("unavailable");
-        send("deposit", reqID, amount) to head;
+        if head = NULL then return ERROR("unavailable")
+        send("deposit", reqID, amount) to head
 
-        wait up to T seconds until (reqID, outcome, balance) ∈ responses;
-            return outcome;
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses
+            return outcome
     end
 
 function withdraw(amount): returns outcome
-    reqID = genReqID();
+    var reqID = genReqID(accountNum, bankName) //Generate a unique requestID
+    var head = getBankHead(bankName)
     repeat
-        if head = NULL then return ERROR("unavailable");
-        send("withdraw", reqID, amount) to head;
+        if head = NULL then return ERROR("unavailable")
+        send("withdraw", reqID, amount) to head
 
-        wait up to T seconds until (reqID, outcome, balance) ∈ responses;
-            return outcome;
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses
+            return outcome
     end
