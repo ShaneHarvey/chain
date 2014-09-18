@@ -1,5 +1,3 @@
-//TODO: add bankName to master messages
-
 var isHead // boolean true if this server is Head
 var isTail // boolean true if this server is Tail
 var master // address of master
@@ -10,6 +8,7 @@ var currentlyExtendingChain = False // True when tail is extending the chain
 var sentUpdates initially {} // Updates sent to successor and not yet ACKed
 var currentSYN = 0 // Initial value of request SYN
 var bank // Load from config, stores balance of each account
+var bankName // Load from config file
 
 enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
 
@@ -22,13 +21,13 @@ class Reply {
 // This is only called once to join the chain on initialization
 function joinChain():
     // Ask master to join chain
-    send("join") to master
+    send("join", bankName) to master
 
 event receiveEndOfSent() from predecessor:
     // Start acting as tail
     isTail = true
     // Tell master "I am new tail"
-    send("newTail") to master
+    send("newTail", bankName) to master
 
 // Only the tail receives this message
 event receiveExtendChain(newTail) from master:
@@ -50,7 +49,7 @@ event receiveExtendChain(newTail) from master:
 event predecessorFailure(newPredecessor) from master:
     predecessor = newPredecessor
     // Send acknowledgement to master with SYN of last update
-    send("ACK", currentSYN) to master
+    send("ACK", currentSYN, bankName) to master
 
 event successorFailure(newSuccessor, newSuccessorSYN) from master:
     successor = newSuccessor
@@ -140,7 +139,7 @@ function getNextSYN():
 
 thread sendPing():
     // Thread sends ping to master
-    send("ping", IP address) to master
+    send("ping", IP address, bankName) to master
     // Thread sleeps for 1 second
     sleep(1)
 
