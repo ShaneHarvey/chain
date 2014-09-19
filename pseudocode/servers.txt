@@ -8,7 +8,7 @@ var currentlyExtendingChain = False // True when tail is extending the chain
 var sentUpdates initially {} // Updates sent to successor and not yet ACKed
 var currentSYN = 0 // Initial value of request SYN
 var bank // Load from config, stores balance of each account
-var bankName // Load from config file
+var bankName // Load from config file. Each server is associated with a single bank
 
 enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
 
