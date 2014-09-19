@@ -1,25 +1,25 @@
 const T = retransmission delay
 var master // loaded from the configuration file
-var sequenceNum initially 0 
+var sequenceNum initially 0
 var responses initially {}
 var clientID //Unique identifier for the clients loaded from the configuration file
 var BankMapTails(bankName, TailIPAddress) //bankName is the key and the value will be the IP Address of the tail
 var BankMapHeads(bankName, HeadIPAddress) //bankName is the key and the value will be the IP Address of the head
 
-event headFailure(newHead, bankName) from master:
+event receiveHeadFailure(newHead, bankName) from master:
     BankNameHeads[bankName] = newHead
 
 
-event tailFailure(newTail) from master:
+event receiveTailFailure(newTail) from master:
     BankNameTails[bankName] = newTail
 
-event receive("response", reply) from tail:
-    response := responses ∪ reply
+event receiveResponse("response", reply) from tail:
+    responses.add(reply)
 
 //function generates a unique request identification
 function genReqID(accountNum, bankName):
     sequenceNum++
-    return ".".join((bankName, accountNum, sequenceNum.clientID))//makes a string dot seperated with the values 
+    return (bankName, accountNum, clientID, sequenceNum)
 
 //get the IP address and port number of the tail of the Bank specified by bankName
 function getBankTail(bankName):
