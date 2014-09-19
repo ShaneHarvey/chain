@@ -1,4 +1,4 @@
-		      CSE535: Asynchronous Systems            2sep2014
+		      CSE535: Asynchronous Systems            17sep2014
 		   Scott Stoller, Stony Brook University
 
 		      Project: Chain Replication
@@ -100,6 +100,11 @@ UPDATES
   been processed, return <reqID, Processed, balance>.  if a different
   transaction with the same reqID has been processed, return <reqID,
   InconsistentWithHistory, balance>.
+  [UPDATE, 17sep2014: added the following] It is acceptable for a server of
+  either the source bank or the destination bank to send a reply to the
+  client.  However, the client should send the request only to a server of
+  the source bank; the client should not need to send a request to a server
+  of the destination bank.
 
 ============================================================
 SIMPLIFICATIONS
@@ -402,6 +407,12 @@ README.txt should contain the following sections:
   compilation, supply a Makefile or a detailed sequence of commands, not an
   IDE's project file.  include a specific example of the command to run a
   selected testcase.
+
+  MAIN FILES (phases 2-4 only).  The full pathname (in your zip or tar
+  file) of the files containing the main code for the client, server, and
+  master.  (This will help graders look at the most important/interesting 
+  code first, and look at other code used by it as needed.)
+  [UPDATE, 16sep2014: I added this item.]
 
   BUGS AND LIMITATIONS.  a list of all known bugs in and limitations of
   your code.
