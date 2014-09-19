@@ -31,6 +31,8 @@ event receiveEndOfSent() from predecessor:
 
 // Only the tail receives this message
 event receiveExtendChain(newTail) from master:
+    if not isTail:
+        return
     // Start logging updates into sentUpdates
     // And stop adding updates to processedUpdates
     currentlyExtendingChain = True

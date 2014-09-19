@@ -1,6 +1,6 @@
 const T = retransmission delay
 var master // loaded from the configuration file
-var sequenceNum initially 0 
+var sequenceNum initially 0
 var responses initially {}
 var clientID //Unique identifier for the clients loaded from the configuration file
 var BankMapTails(bankName, TailIPAddress) //bankName is the key and the value will be the IP Address of the tail
