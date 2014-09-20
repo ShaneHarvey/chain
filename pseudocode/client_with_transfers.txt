@@ -1,6 +1,7 @@
 // CSE 535 Fall 2014
 // Shane Harvey and Soumadip Mukherjee
 // Phase 1 part 3
+// Client with transfers
 
 const T = retransmission delay
 var master // loaded from the configuration file

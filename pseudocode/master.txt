@@ -1,6 +1,7 @@
 // CSE 535 Fall 2014
 // Shane Harvey and Soumadip Mukherjee
 // Phase 1 part 1
+// Master
 
 var banks = list of bankNames // From config
 var clients = list of clients // From config

@@ -1,6 +1,7 @@
 // CSE 535 Fall 2014
 // Shane Harvey and Soumadip Mukherjee
 // Phase 1 part 1
+// Servers
 
 var isHead // boolean true if this server is Head
 var isTail // boolean true if this server is Tail
