@@ -1,0 +1,79 @@
+// CSE 535 Fall 2014
+// Shane Harvey and Soumadip Mukherjee
+// Phase 1 part 3
+
+const T = retransmission delay
+var master // loaded from the configuration file
+var sequenceNum initially 0
+var responses initially {}
+var clientID //Unique identifier for the clients loaded from the configuration file
+var BankMapTails(bankName, TailIPAddress) //bankName is the key and the value will be the IP Address of the tail
+var BankMapHeads(bankName, HeadIPAddress) //bankName is the key and the value will be the IP Address of the head
+
+event receiveHeadFailure(newHead, bankName) from master:
+    BankNameHeads[bankName] = newHead
+
+
+event receiveTailFailure(newTail) from master:
+    BankNameTails[bankName] = newTail
+
+event receiveResponse("response", reply) from tail:
+    responses.add(reply)
+
+//function generates a unique request identification
+function genReqID(accountNum, bankName):
+    sequenceNum++
+    return (bankName, accountNum, clientID, sequenceNum)
+
+//get the IP address and port number of the tail of the Bank specified by bankName
+function getBankTail(bankName):
+    return BankMapTails[bankName]
+
+//get the IP address and port number of the head of the Bank specified by bankName
+function getBankHead(bankName):
+    return BankMapHeads[bankName]
+
+function getBalance(accountNum, bankName): returns balance
+    var reqID = genReqID(accountNun, bankName)//generate the requestID
+    var tail = getBankTail(bankName)
+    repeat
+        //set the Tail of the bankName
+        if tail = NULL then return ERROR("unavailable")
+        send("getBalance", reqID) to tail
+
+        wait up to T seconds until (reqID, Processed, balance) ∈ responses
+            return balance
+    end
+
+function deposit(accountNum, bankName, amount): returns outcome
+    var reqID = genReqID(accountNum, bankName)
+    var head = getBankHead(bankName)
+    repeat
+        if head = NULL then return ERROR("unavailable")
+        send("deposit", reqID, amount) to head
+
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses
+            return outcome
+    end
+
+function withdraw(amount, bankName): returns outcome
+    var reqID = genReqID(accountNum, bankName) //Generate a unique requestID
+    var head = getBankHead(bankName)
+    repeat
+        if head = NULL then return ERROR("unavailable")
+        send("withdraw", reqID, amount) to head
+
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses
+            return outcome
+    end
+
+function transfer(srcBank, accountNum, amount, destBank, destAccount): returns outcome
+    var reqID = genReqID(accountNum, srcBank) //Generate a unique requestID
+    var head = getBankHead(srcBank)
+    repeat
+        if head = NULL then return ERROR("unavailable")
+        send("transfer", reqID, srcBank, accountNum, amount, destBank, destAccount) to head
+
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses
+            return outcome
+    end

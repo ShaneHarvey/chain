@@ -1,0 +1,305 @@
+// CSE 535 Fall 2014
+// Shane Harvey and Soumadip Mukherjee
+// Phase 1 part 3
+
+var isHead // boolean true if this server is Head
+var isTail // boolean true if this server is Tail
+var master // address of master
+var predecessor // address of previous server or NULL
+var successor // address of next server or NULL
+var processedUpdates initially {} // Previous deposits/withdrawls/transfers
+var currentlyExtendingChain = False // True when tail is extending the chain
+var sentUpdates initially {} // Updates sent to successor and not yet ACKed
+var currentSYN = 0 // Initial value of request SYN
+var bank // Load from config, stores balance of each account
+var bankName // Load from config file
+
+/********* Added for transfers *********/
+// Keep track of Head and Tail for each bank
+var bankHeads = {} // initialized from config
+var bankTails = {} // initialized from config
+
+// Master tells us when each banks' head or tail is updated
+event receiveNewHead(newHead, bankName) from master:
+    bankHeads[bankName] = newHead
+    // To deal with possibly lost transfers if the head failed
+    // and this bank has a open transfer in sentUpdates to that
+    // bank. We should resend the transfer
+    if isTail:
+        for transfer in sentUpdates:
+            if transfer.destBank == bankName:
+                // Resend transfer to new Head
+                send("destTransfer", transfer.SYN, transfer) to newHead
+
+event receiveNewTail(newTail, bankName) from master:
+    bankTails[bankName] = newTail
+
+
+event receiveDestTransfer(firstBankSYN, t) from someServer:
+    if isHead:
+        // Receiving transfer from another bank
+        // We are the destination bank Head
+        // Generate this bank's SYN
+        SYN = getNextSYN()
+        // our SYN to this update
+        trans = (SYN, t)
+
+    // Process the second half of the transfer
+    response = transfer(t)
+    processedUpdates.add(t)
+
+    if isTail:
+        // We are the Tail of the destination bank
+        // ACK our own predecessor
+        send("ACK", SYN) to predecessor
+        // ACK the tail of the source bank
+        send("ACK", firstBankSYN) to bankTails[srcBank]
+        // Send the reply to the client
+        send("response", response) to client
+    else:
+        // Forward the second half of the transfer along the chain
+        sentUpdates.add(trans)
+        send("destTransfer", firstBankSYN, trans) to successor
+
+
+enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
+
+class Reply {
+  string reqID
+  Outcome outcome
+  float balance
+}
+
+// This is only called once to join the chain on initialization
+function joinChain():
+    // Ask master to join chain
+    send("join", bankName) to master
+
+event receiveEndOfSent() from predecessor:
+    // Start acting as tail
+    isTail = true
+    // Tell master "I am new tail"
+    send("newTail", bankName) to master
+
+// Only the tail receives this message
+event receiveExtendChain(newTail) from master:
+    if not isTail:
+        return
+    // Start logging updates into sentUpdates
+    // And stop adding updates to processedUpdates
+    currentlyExtendingChain = True
+    // Sent the current bank data to the new tail
+    send("bankData", bank) to newTail
+    // Start sending the old updates to newTail
+    for oldUpdate in processedUpdates:
+        send("storeUpdate", oldUpdate) to newTail
+    // Now send updates that we've received since starting extension to newTail
+    // These updates will be processed by the new tail
+    for update in sentUpdates:
+        send("update", update) to newTail
+    send("endOfSent") to newTail
+    // Stop acting as tail
+    currentlyExtendingChain = false
+    isTail = false
+    // ...done????????
+
+event receiveBankData(bankData) from predecessor:
+    // This server is extending the chain
+    // Initialize our bank with the tail's current bank info
+    bank = bankData
+
+event receiveStoreUpdate(oldUpdate) from predecessor:
+    // This server is extending the chain
+    // Just add old updates to this servers history
+    processedUpdates.add(oldUpdate)
+
+event receivePredecessorFailure(newPredecessor) from master:
+    predecessor = newPredecessor
+    // Send acknowledgement to master with SYN of last update
+    send("ACK", currentSYN, bankName) to master
+
+event receiveSuccessorFailure(newSuccessor, newSuccessorSYN) from master:
+    successor = newSuccessor
+    // Resend sentUpdates with SYN > newSuccessorSYN to newSuccessor
+    for update in sentUpdates if update.SYN > newSuccessorSYN:
+        send("update", update) to successor
+
+event receiveBecomeTail() from master:
+    successor = NULL
+    isTail = true
+    if not isHead:
+        // ACK the max SYN in sentUpdates
+        SYN = maxSYN(sentUpdates)
+        send("ACK", SYN) to predecessor
+    // Clear sentUpdates
+    sentUpdates = {}
+
+event receiveBecomeHead() from master:
+    predecessor = NULL
+    isHead = true
+
+// The server is operating as Head
+event receiveUpdate(u) from client:
+    // Add SYN to incoming update
+    SYN = getNextSYN()
+    update = (SYN, u)
+    // Compute update with reqID, accountNum, and amount from u
+    if update is deposit:
+        response = deposit(reqID, accountNum, amount)
+    else if update is withdrawl:
+        response = withdrawl(reqID, accountNum, amount)
+    else if update is transfer:
+        response = transfer(reqID, srcBank, accountNum, amount, destBank, destAccount)
+    // Add u (update without SYN) to processedUpdates
+    processedUpdates.add(u)
+
+    if isTail:
+        // If the update was a tranfer and it was processed
+        if update is transfer AND response == <_, Processed, _>:
+            // the update was a transfer
+            // Send the transfer to the Head of the destination bank
+            sentUpdates.append(update)
+            send("destTransfer", SYN, u) to bankHeads[destBank]
+        else:
+            // Update was a deposit or withdrawal
+            // Head is also Tail here (no need to ACK)
+            // Respond to client
+            send("response", response) to client
+    else:
+        // If we are not the tail forward the update along the chain
+        sentUpdates.append(update)
+        send("update", update) to successor
+
+// The server is NOT operating as Head
+// Server receives a forwarded request from predecessor
+event receiveUpdate(SYN, u) from predecessor:
+    // Update this server's SYN with the last update it received
+    currentSYN = max(currentSYN, SYN);
+    if update is deposit:
+        response = deposit(reqID, accountNum, amount)
+    else if update is withdrawl:
+        response = withdrawl(reqID, accountNum, amount)
+    else if update is transfer:
+        response = transfer(reqID, srcBank, accountNum, amount, destBank, destAccount)
+    // Add u (update without SYN) to processedUpdates
+    processedUpdates.add(u)
+
+    if isTail:
+        if currentlyExtendingChain:
+            // We start logging Tail's updates during extension
+            sentUpdates.append(update)
+
+         // If the update was a tranfer and it was processed
+        if update is transfer AND response == <_, Processed, _>:
+            // Send the transfer to the Head of the destination bank
+            sentUpdates.append(update)
+            send("destTransfer", SYN, u) to bankHeads[destBank]
+        else:
+            // Send ACK to predecessor
+            send("ACK", SYN) to predecessor
+            // Respond to client
+            send("response", response) to client
+    else:
+        // If we are not the tail forward the update along the chain
+        sentUpdates.append(update)
+        send("update", update) to successor
+
+// Transfer changed to receive ACKS from successor or someTail
+event receiveACK(SYN) from successor or someTail:
+    // Remove updates from "sentUpdates" that have sequenceNum <= SYN
+    for update in sentUpdates if update.SYN <= SYN:
+        sentUpdates.remove(update)
+
+    if not isHead:
+        // Continnue to forward ACK to predecessor
+        send("ACK", SYN) to predecessor
+
+event receiveQuery(q) from client:
+    // Only Tail will receive this message
+    if not isTail:
+        return
+    if q is getBalance:
+        // Only process getBalance queries
+        response = getBalance(reqID, accountNum)
+        send("response", response) to client
+
+function getNextSYN():
+    return SYN++
+
+thread sendPing():
+    // Thread sends ping to master
+    send("ping", IP address, bankName) to master
+    // Thread sleeps for 1 second
+    sleep(1)
+
+function getBalance(reqID, accountNum): return <reqID, Outcome, balance>
+    // In theory this method should only be called on the Tail server by clients
+    if accountNum in bank:
+        return <reqID, Processed, bank[accountNum]>
+    else:
+        // Automatically create account for this accountNum
+        bank[accountNum] = 0
+        return <reqID, Processed, 0>
+
+function deposit(reqID, accountNum, amount): return < reqID, Outcome, balance>
+    if reqID not in processedUpdates:
+        if accountNum not in bank:
+            // Automatically create account for this accountNum
+            bank[accountNum] = 0
+        // Update balance
+        bank[accountNum] += amount
+        return <reqId, Processed, bank[accountNum]>
+    else:
+        oldUpdate = processedUpdates.get(reqID)
+        if oldUpdate is same as thisUpdate:
+            return <reqID, Processed, bank[accountNum]>
+        else:
+            return <reqID, InconsistentWithHistory, bank[accountNum]>
+
+function withdrawl(reqID, accountNum, amount): return < reqID, Outcome, balance>
+    if reqID not in processedUpdates:
+        if accountNum not in bank:
+            // Automatically create account for this accountNum
+            bank[accountNum] = 0
+        // Update balance
+        if bank[accountNum] < amount:
+            return <reqId, InsufficientFunds, bank[accountNum]>
+        else:
+            bank[accountNum] -= amount
+            return <reqId, Processed, bank[accountNum]>
+    else:
+        oldUpdate = processedUpdates.get(reqID)
+        if oldUpdate is same as thisUpdate:
+            return <reqID, Processed, bank[accountNum]>
+        else:
+            return <reqID, InconsistentWithHistory, bank[accountNum]>
+
+function transfer(reqID, srcBank,  accountNum, amount, destBank, destAccount): return <reqID, Processed, balance>
+    if reqID not in processedUpdates:
+        if bankName == srcBank:
+            // This server is the source bank
+            // "Withdraw" amount from accountNum
+            if accountNum not in bank:
+                // Automatically create account for this accountNum
+                bank[accountNum] = 0
+            // Update balance
+            if bank[accountNum] < amount:
+                return <reqId, InsufficientFunds, bank[accountNum]>
+            else:
+                bank[accountNum] -= amount
+                return <reqId, Processed, bank[accountNum]>
+        else if bankName == destBank:
+            // This server is the destination bank
+            // "Deposit" amount into destAccount
+            if destAccount not in bank:
+                // Automatically create account for this destAccount
+                bank[destAccount] = 0
+            // Update balance
+            bank[destAccount] += amount
+            return <reqId, Processed, bank[destAccount]>
+    else:
+        oldUpdate = processedUpdates.get(reqID)
+        if oldUpdate is same as thisUpdate:
+            return <reqID, Processed, bank[accountNum]>
+        else:
+            return <reqID, InconsistentWithHistory, bank[accountNum]>
