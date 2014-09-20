@@ -56,7 +56,7 @@ function deposit(accountNum, bankName, amount): returns outcome
             return outcome
     end
 
-function withdraw(amount): returns outcome
+function withdraw(amount, bankName): returns outcome
     var reqID = genReqID(accountNum, bankName) //Generate a unique requestID
     var head = getBankHead(bankName)
     repeat

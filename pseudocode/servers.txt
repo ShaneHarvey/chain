@@ -150,7 +150,7 @@ event receiveQuery(q) from client:
         return
     if q is getBalance:
         // Only process getBalance queries
-        response = getBalance(reqID, accoutNum)
+        response = getBalance(reqID, accountNum)
         send("response", response) to client
 
 function getNextSYN():
@@ -162,50 +162,44 @@ thread sendPing():
     // Thread sleeps for 1 second
     sleep(1)
 
-function getBalance(reqID, accoutNum): return <reqID, Outcome, balance>
+function getBalance(reqID, accountNum): return <reqID, Outcome, balance>
     // In theory this method should only be called on the Tail server by clients
-    var balance = -1
-    if history.contains(reqID) != true:
-        balance = getBalance(accountNum)
-        Reply newEntry = Reply(reqID, Processed, balance)
-        history.add(newEntry)
-        return < reqID, Processed, balance >
+    if accountNum in bank:
+        return <reqID, Processed, bank[accountNum]>
     else:
-        return < reqID, InconsistentWithHistory, balance>
+        // Automatically create account for this accountNum
+        bank[accountNum] = 0
+        return <reqID, Processed, 0>
 
 function deposit(reqID, accountNum, amount): return < reqID, Outcome, balance>
-    var balance = -1
-    if history.contains(reqID) != true:
-        balance = getBalance(accountNum)
-        Reply newEntry = Reply(reqID, Processed, balance)
-        history.add(newEntry)
-        balance = balance + amount
-        updateBalance(accountNum, balance)
-        return <reqId, Processed, balance>
+    if reqID not in processedUpdates:
+        if accountNum not in bank:
+            // Automatically create account for this accountNum
+            bank[accountNum] = 0
+        // Update balance
+        bank[accountNum] += amount
+        return <reqId, Processed, bank[accountNum]>
     else:
-        Reply obj = history.find(reqID)// response obj
-        if(obj.balance == amount):
-            return <reqID, Processed, balance>
+        oldUpdate = processedUpdates.get(reqID)
+        if oldUpdate is same as thisUpdate:
+            return <reqID, Processed, bank[accountNum]>
         else:
-            return <reqID, InconsistentWithHistory, balance>
+            return <reqID, InconsistentWithHistory, bank[accountNum]>
 
- function withdraw(reqID, accountNum, amount): return <reqID, Outcome, balance>
-    var balance = -1
-    Reply newEntry
-    if history.contains(reqID) != true:
-        balance = getBalance(accountNum)
-        history.add(newEntry)
-        if (balance = balance - amount ) > 0:
-            updateBalance(accountNum, balance)
-            newEntry = Reply(reqID, Processed, balanced)
+function withdrawl(reqID, accountNum, amount): return < reqID, Outcome, balance>
+    if reqID not in processedUpdates:
+        if accountNum not in bank:
+            // Automatically create account for this accountNum
+            bank[accountNum] = 0
+        // Update balance
+        if bank[accountNum] < amount:
+            return <reqId, InsufficientFunds, bank[accountNum]>
         else:
-            newEntry = Reply(reqID, InsufficientFunds, balanced)
-
-        return newEntry
+            bank[accountNum] -= amount
+            return <reqId, Processed, bank[accountNum]>
     else:
-        Reply obj = history.find(reqID)
-        if(obj.balance == amount):
-            return obj
+        oldUpdate = processedUpdates.get(reqID)
+        if oldUpdate is same as thisUpdate:
+            return <reqID, Processed, bank[accountNum]>
         else:
-
-            return <reqID, InconsistentWithHistory, balance>
+            return <reqID, InconsistentWithHistory, bank[accountNum]>
