@@ -1,6 +1,6 @@
 // CSE 535 Fall 2014
 // Shane Harvey and Soumadip Mukherjee
-// Phase 1 part 1
+// Phase 1 part 3
 
 const T = retransmission delay
 var master // loaded from the configuration file
@@ -62,6 +62,17 @@ function withdraw(amount, bankName): returns outcome
     repeat
         if head = NULL then return ERROR("unavailable")
         send("withdraw", reqID, amount) to head
+
+        wait up to T seconds until (reqID, outcome, balance) ∈ responses
+            return outcome
+    end
+
+function transfer(srcBank, accountNum, amount, destBank, destAccount): returns outcome
+    var reqID = genReqID(accountNum, srcBank) //Generate a unique requestID
+    var head = getBankHead(srcBank)
+    repeat
+        if head = NULL then return ERROR("unavailable")
+        send("transfer", reqID, srcBank, accountNum, amount, destBank, destAccount) to head
 
         wait up to T seconds until (reqID, outcome, balance) ∈ responses
             return outcome

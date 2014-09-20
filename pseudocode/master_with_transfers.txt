@@ -1,6 +1,6 @@
 // CSE 535 Fall 2014
 // Shane Harvey and Soumadip Mukherjee
-// Phase 1 part 1
+// Phase 1 part 3
 
 var banks = list of bankNames // From config
 var clients = list of clients // From config
@@ -17,6 +17,8 @@ event receiveNewTail(bankName) from newTail:
     // Broadcast the enw tail to all clients
     send("newTail", newTail) to clients
     release(extendMutex[bankName]) // Release the lock
+    // Tell all the servers of the newTail for this bank
+    send("newTail", newTail, bankName) to all servers in chain
 
 event receivePing(bankName) from server:
     chain[bankName][server].pingCount++
@@ -44,6 +46,8 @@ thread detectFailure():
             send("becomeHead") to newHead
             // Broadcast newHead to all clients
             send("newHead", newHead, bankName) to clients
+            // Tell all the servers of the new Head for this bank
+            send("newHead", newHead, bankName) to all servers in chain
         if aliveServers[-1] != tailIndex:
             // Previous Tail failed
             newTail= chain[bankName][aliveServers[-1]]
@@ -51,6 +55,8 @@ thread detectFailure():
             send("becomeTail") to newTail
             // Broadcast newTail to all clients
             send("newTail", newTail, bankName) to clients
+            // Tell all the servers of the newTail for this bank
+            send("newTail", newTail, bankName) to all servers in chain
 
         // Handle crashes in the chain
         prevIndex = aliveServers[0]
