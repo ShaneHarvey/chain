@@ -1,0 +1,7 @@
+PHASE 2: NON-FAULT-TOLERANT SERVICE
+
+in both languages, implement and test the clients and servers, except do
+not implement algorithms to cope with failures, extend the chain, or
+support transfers.  thus, clients issue requests, and servers handle them
+appropriately (forwarding updates along the chain, etc.), provided no
+failures occur.
