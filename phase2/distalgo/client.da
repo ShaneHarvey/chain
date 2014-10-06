@@ -1,0 +1,25 @@
+# DistAlgo code for chain replication client, based on the pseudocode in
+# [vanRenesse2010Replication, Figure 2.5]
+class Client(process):
+
+    def setup(servers):
+        self.T = 3
+        self.responses = set()
+
+    def receive(('failure', p')):
+        servers.remove(p)
+
+    def receive(('response,r)):
+        responses.add((p,r))
+
+    def updateHist(op):
+        uid = genUID()
+        while True:
+            if servers == set():
+                return ERROR('unavailable')
+            head = max(servers)
+            send(('update', (uid,op)) to=head)
+            if await((_, (_uid, H)) in responses):
+                return H
+            elif timeout(T):
+                pass
