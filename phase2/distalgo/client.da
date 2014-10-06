@@ -6,11 +6,11 @@ class Client(process):
         self.T = 3
         self.responses = set()
 
-    def receive(('failure', p')):
+    def receive(msg=('failure', p), from_=master):
         servers.remove(p)
 
-    def receive(('response,r)):
-        responses.add((p,r))
+    def receive(msg=('response',r), from_=tail):
+        responses.add((tail,r))
 
     def updateHist(op):
         uid = genUID()
@@ -18,7 +18,7 @@ class Client(process):
             if servers == set():
                 return ERROR('unavailable')
             head = max(servers)
-            send(('update', (uid,op)) to=head)
+            send(('update', (uid,op)), to=head)
             if await((_, (_uid, H)) in responses):
                 return H
             elif timeout(T):
