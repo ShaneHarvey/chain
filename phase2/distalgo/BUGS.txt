@@ -1,0 +1,7 @@
+List of bugs:
+
+If the setup method does not take any args it is not called.
+Even if you explicitly invoke it.
+
+If you try to pass a sequence to the setup method, that sequence is 
+flattened. setup(clients, [1,2,3]) becomes setup(clients, 1, 2, 3)
