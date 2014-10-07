@@ -1,78 +1,91 @@
 import sys
 import time
-
+# Used as a 'bank'
+from collections import defaultdict
+# Decimal is used to store monetary values precisely
+from decimal import Decimal
 
 # DistAlgo code for chain replication client, based on the pseudocode in
 # [vanRenesse2010Replication, Figure 2.5]
 class Client(process):
 
-    def setup(nothing):
-        self.servers = [1,2,3]
+    def setup(servers):
+        # timeout and retransmit after 3 seconds
+        # This is the only timeout in the design
         self.T = 3
         self.responses = set()
-        self.bank_name = 'Chase'
-        self.account = '123'
         self.seq = 0
-
-    def receive(msg=('failure', p), from_=master):
-        servers.remove(p)
 
     def receive(msg=('response', r), from_=tail):
         responses.add((tail,r))
 
-    def send_update(update, op):
-        uid = gen_uid()
+    def send_update(update, ammount, bank, account):
+        uid = gen_uid(bank, account)
         while True:
             if servers == set():
                 return 'unavailable'
-            head = max(servers)
-            send((update, (uid,op)), to=head)
-            if await((_, (_uid, resp)) in responses):
-                return resp
+            #head = max(servers)
+            send((update, (uid, ammount)), to=servers)
+            if await(some((_, (ruid, r)) in responses, has=(ruid == uid))):
+                return r
             elif timeout(T):
                 pass
-    
-    def gen_uid():
+
+    def gen_uid(bank, account):
         seq += 1
-        return ".".join([bank_name, account, str(id(1)), str(seq)])
+        return (id(0), bank, account, seq)
 
     def main():
         for x in range(10):
-            reply = send_update('deposit', '40.00')
+            reply = send_update('deposit', '40.00', 'Chase', '001')
             output('reply %s' % reply)
             time.sleep(1)
+        time.sleep(3)
+        send(('Done',), to=servers)
+
 
 class Server(process):
 
-    def setup(status):
-        self.predecessor  = ''
-        self.sucessor = ''
+    def setup(servers):
+        # TODO: Replace with implict place in servers list?
+        self.predecessor  = None
+        self.sucessor = None
+        self.is_head = True
+        self.is_tail = True
         self.history = set()
         self.bank_name = 'Chase'
-        self.bank = dict()
+        # Keys not in
+        self.bank = defaultdict(int)
+
+    def set_predecessor(new_pred):
+        self.predecessor = new_pred
+        is_head = False
+
+    def set_sucessor(new_suc):
+        self.sucessor = new_suc
+        self.is_tail = False
 
     def main():
-        pass
+        await(received(('Done',)))
+        output("Terminating..")
 
-    def receive(msg=('balance', (uid,q)), from_=client):
+    def receive(msg=('balance', (uid, q)), from_=client):
         # get account num from the uid
         acc = uid[2]
-        balance = get_balance(acc)
-        send(('response', (uid, balance)), to=client)
+        send(('response', (uid, bank[acc])), to=client)
 
-    def receive(msg=('withdrawl', (uid,w)), from_=client):
+    def receive(msg=('withdrawl', (uid, ammount)), from_=client):
         pass
 
-    def receive(msg=('deposit', (uid,w)), from_=client):
-        pass
+    def receive(msg=('deposit', (uid, ammount)), from_=client):
+        # get account num from the uid
+        acc = uid[2]
+        # Deposit his $$$
+        bank[acc] += Decimal(ammount)
+        output("Sending response uid")
+        output(uid)
+        send(('response', (uid, bank[acc])), to=client)
 
-    def get_balance(account_num):
-        balance = 0
-        if account_num in bank:
-            balance = bank[account_num]
-        else:
-            bank[account_num] = 0
-        return balance
 
 def main():
     """Usage: client.da [num_clients]
@@ -81,5 +94,9 @@ def main():
     config(clock='Lamport')
     clients = new(Client, num=nclients)
     # TODO: Somehow pass chain of servers to the setup method
-    setup(clients, [1])
+    server = new(Server, num=1)
+    setup(server, [None])
+    for c in clients:
+        setup(c, [server])
+    start(server)
     start(clients)

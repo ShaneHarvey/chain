@@ -1,7 +1,7 @@
-		      CSE535: Asynchronous Systems            17sep2014
-		   Scott Stoller, Stony Brook University
+          CSE535: Asynchronous Systems            2014-10-04
+       Scott Stoller, Stony Brook University
 
-		      Project: Chain Replication
+          Project: Chain Replication
 
 ============================================================
 OVERVIEW
@@ -29,6 +29,13 @@ Chain replication is also described in
 The algorithm is fundamentally the same in both papers, but some details
 differ.  The first paper is more detailed in some respects, so it will be
 our primary reference, but the second paper is also worth reading.
+
+{UPDATE 2014-09-26]
+Your implementation must allow each server to run on a different machine.
+
+{UPDATE 2014-09-29]
+All communication must be explicit using some form of messages.  Use of
+shared files or distributed shared memory is not permitted.
 
 To simplify the correctness proof, the papers describe the protocol as
 storing a complete history (sequence of updates) for each object.  As the
@@ -69,25 +76,29 @@ QUERIES
 
 UPDATES
 
-  deposit(reqID, accountNum, amount): if a transaction with this reqID
-  has not been processed for this account, increase the account balance by
-  the amount, append the transaction to processedTrans, and return
-  <reqID, Processed, balance>, where balance is the current balance.  if
+  [UPDATE 2014-10-04: in each of the following 3 paragraphs, I replaced "if
   exactly the same transaction has already been processed for this account,
-  simply return <reqID, Processed, balance>.  if a different transaction
-  with the same reqID has been processed for this account, return
-  <reqID, InconsistentWithHistory, balance>.
+  simply return <reqID, Processed, balance>." with "if exactly the same
+  transaction has already been processed, re-send the same reply."]
 
-  withdraw(reqId, accountNum, amount): if a transaction with this reqID
-  has not been processed for this account, and the account balance is at
-  least the amount, decrease the account balance by the amount, append the
+  deposit(reqID, accountNum, amount): if a transaction with this reqID has
+  not been processed for this account, increase the account balance by the
+  amount, append the transaction to processedTrans, and return <reqID,
+  Processed, balance>, where balance is the current balance.  if exactly
+  the same transaction has already been processed, re-send the same reply.
+  if a different transaction with the same reqID has been processed for
+  this account, return <reqID, InconsistentWithHistory, balance>.
+
+  withdraw(reqId, accountNum, amount): if a transaction with this reqID has
+  not been processed for this account, and the account balance is at least
+  the amount, decrease the account balance by the amount, append the
   transaction to processedTrans, and return <reqID, Processed, balance>.
   if a transaction with this reqID has not been processed for this account,
   and the account balance is less than the amount, return <reqID,
   InsufficientFunds, balance>.  if exactly the same transaction has already
-  been processed, simply return <reqID, Processed, balance>.  if a
-  different transaction with the same reqID has been processed, return
-  <reqID, InconsistentWithHistory, balance>.
+  been processed, re-send the same reply.if a different transaction with
+  the same reqID has been processed, return <reqID,
+  InconsistentWithHistory, balance>.
 
   transfer(reqID, accountNum, amount, destBank, destAccount): if a
   transaction with this reqID has not already been processed, and the
@@ -97,14 +108,13 @@ UPDATES
   transfer with this reqID has not already been processed, and the account
   balance is less than the transfer amount, return <reqID,
   InsufficientFunds, balance>.  if exactly the same transaction has already
-  been processed, return <reqID, Processed, balance>.  if a different
-  transaction with the same reqID has been processed, return <reqID,
-  InconsistentWithHistory, balance>.
-  [UPDATE, 17sep2014: added the following] It is acceptable for a server of
-  either the source bank or the destination bank to send a reply to the
-  client.  However, the client should send the request only to a server of
-  the source bank; the client should not need to send a request to a server
-  of the destination bank.
+  been processed, re-send the same reply.  if a different transaction with
+  the same reqID has been processed, return <reqID, InconsistentWithHistory, 
+  balance>.  [UPDATE, 2014-09-17: added the following] It is acceptable for
+  a server of either the source bank or the destination bank to send a
+  reply to the client.  However, the client should send the request only to
+  a server of the source bank; the client should not need to send a request
+  to a server of the destination bank.
 
 ============================================================
 SIMPLIFICATIONS
@@ -119,7 +129,8 @@ assume the master never fails.  therefore, you do not need to implement
 Paxos.
 
 the same master is used by all banks.  the master reports every failure to
-all servers of all banks.
+all servers of all banks.  [UPDATE, 2014-09-18: the master also reports
+failures to clients.]
 
 assume that the pattern of failures is limited so that there is always at
 least one living server for each bank.
@@ -205,6 +216,17 @@ needed for thorough testing of fault-tolerant distributed systems.
 tip: you will have numerous configuration files.  to help keep track of them,
 organize them into folders, and try to give them meaningful names.
 
+[UPDATE 2014-10-03: added the following.]  for non-fault-tolerant service
+(phase2), you do not need to consider scenarios with message loss between
+clients and servers.  for subsequent phases, you do need to consider such
+scenarios, because such with message loss is one of the types of failures
+that chain replication is designed to tolerate.  you will need to introduce
+such failures synthetically (i.e., simulate them), in a similar way as
+server lifetimes (specified in the configuration file) are used to simulate
+server failures.  you should introduce some lines in the configuration file
+to specify when and how often message loss between clients and servers
+occurs.
+
 ============================================================
 LOGS
 
@@ -271,6 +293,10 @@ distributed algorithms easier to write.  The other language can be any
 programming language of your choice except Python (which overlaps too much
 with DistAlgo).
 
+[UPDATE 2014-09-29]
+The DistAlgo distribution is available at 
+http://sourceforge.net/projects/distalgo/files/
+
 ============================================================
 PHASE 0: TEAM FORMATION
 
@@ -324,7 +350,7 @@ event until some other event occurs, because the periodic repetition is
 driven by timeouts.  as in the core algorithm, any timing dependence should
 be encapsulated in the assumption of perfect failure detection by the
 master and the assumption of reliable communication between servers.
-[UPDATE 2sep2014: I rewrote this entire paragraph; re-read it carefully.]
+[UPDATE 2014-09-02: I rewrote this entire paragraph; re-read it carefully.]
 
 give a convincing argument that your design is correct.  for examples of
 such arguments, see the proof of correctness in [vRS2004chain] and in the
@@ -339,9 +365,15 @@ without appreciably complicating the design.  if you are uncertain whether
 you are striking the correct balance, you are welcome to ask the instructor
 for guidance, preferably during office hours.
 
+{UPDATE, 2014-09-18: Your design cannot change the functionality of the
+master.  the master's only role is failure detection.]
+
 3.  write complete pseudo-code for clients, servers, and the master that
 supports all operations, including transfer.  of course, most of the
 pseudo-code is copied from item 1.
+
+[UPDATE: to save paper, the printout you submit does not need to include
+item 1, since it is mostly a subset of item 3.]
 
 ------------------------------------------------------------ 
 PHASE 2: NON-FAULT-TOLERANT SERVICE
@@ -386,7 +418,10 @@ REMAINING PHASES: submit a zip (or tar) file in the Assignments area in
 Blackboard by 11:59pm on the due date.  the file should be named
 lastname1-lastname2-phaseN.zip (or lastname1-lastname2-phaseN.tar.gz),
 where lastname1 and lastname2 are the last names of the team members, and N
-is the phase number; for example, kenobi-skywalker-phase1.zip.
+is the phase number; for example, kenobi-skywalker-phase1.zip.  
+
+[UPDATE, 2014-09-19: please leave the Comment box blank when you submit the
+assignment on Blackboard.  we look only at the uploaded files.]
 
 the zip (or tar) file should have the following structure and contents:
 
@@ -412,7 +447,7 @@ README.txt should contain the following sections:
   file) of the files containing the main code for the client, server, and
   master.  (This will help graders look at the most important/interesting 
   code first, and look at other code used by it as needed.)
-  [UPDATE, 16sep2014: I added this item.]
+  [UPDATE, 2014-09-16: I added this item.]
 
   BUGS AND LIMITATIONS.  a list of all known bugs in and limitations of
   your code.
@@ -443,7 +478,8 @@ SCHEDULE: PROJECT AND HOMEWORK DUE DATES, EXAM DATES
 
 sep  5 phase 0: team formation (2 weeks)
 sep 19 phase 1: pseudo-code  (2 weeks)
-oct 10 phase 2: non-fault-tolerant service (3 weeks)
+oct 13 phase 2: non-fault-tolerant service (3 weeks
+  [UPDATE 2014-09-29: changed phase 2 due date from oct 10 to oct 13]
 oct 17 hw1
 oct 24 midterm exam
 nov  7 phase 3: fault-tol svc (4 wks after phase2 - 1 wk for hw1&exam = 3 weeks)
@@ -454,7 +490,7 @@ dec 17 8am-10:45am (incl 15min for exam admin) final exam
 the time interval in parentheses is the amount of time allocated for work
 on that phase of the project.
 
-[UPDATE 2sep2014: I added dates for homeworks and exams.  I changed phase2
+[UPDATE 2014-09-02: I added dates for homeworks and exams.  I changed phase2
 due date from oct 31 to nov 7, due to hw1 and the midterm. ]
 
 ============================================================
