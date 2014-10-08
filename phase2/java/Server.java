@@ -1,5 +1,20 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package server;
+
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.channels.Selector;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Server{
     public enum ServerEnum{
@@ -26,6 +41,8 @@ public class Server{
     private static int sServerPort;
     private static int masterPort;
     private static ServerStatus myPosition;
+    private static File logFile;
+    public static String pound = "\n\n############################################################\n\n";
     /**
      * This method Parses the command line arguments and sets up the variables that store the predecessor, successor, and master server
      * @param arg
@@ -173,6 +190,31 @@ public class Server{
     private static void createAccount(int accountNum){
         bank.put(accountNum, new Double(0.0));
     }
+    private static void createFile(){
+        try{
+            String fname = "./Server" + myIP +":" +myPort + ".log";
+            logFile = new File(fname);
+            if(!logFile.exists()){
+                logFile.createNewFile();
+            }
+            Date today = new Date();
+            writeToLog(pound+ today +pound);
+        }catch(IOException e){
+            System.out.println("Error creating log file. Exiting Program");
+            System.exit(0);
+        }
+    }
+    private static void writeToLog(String msg){
+        try{
+            BufferedWriter output = new BufferedWriter(new FileWriter(logFile,true));
+            output.write(msg + "\n");
+            output.close();
+        } catch (IOException ex) {
+            //Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            System.out.println("Error Writing to log file.");
+        }
+    }
+    
     /**
      * This is the main method which gets called in the function
      * @param args will contain the IP addresses of the Master, Predecessor, Successor etc
@@ -180,6 +222,11 @@ public class Server{
     public static void main (String [] args){
         bank = new HashMap();
         parseArgs(args);
+        createFile();
+        writeToLog("TESTING1...");
+        writeToLog("TESTING2...");
+        writeToLog("TESTING3...");
+        
         System.out.println("Success");
         String depositTest = "deposit#127.0.0.1:5000%Chase%1%1#100.00";
         String withTest = "withdrawal#127.0.0.1:5000%Chase%1%1#50.00";
@@ -189,5 +236,9 @@ public class Server{
         parseRequest(queryTest);
         parseRequest(depositTest);
         System.out.println("Success2");
+     /*   deposit#clientIPPORT%bank_name%accountnum%seq#amount
+     *     withdrawal#clientIPPORT%bank_name%accountnum%seq#amount
+     *     balance#clientIPPORT%bank_name%accountnum%seq
+     */
     }
 }
