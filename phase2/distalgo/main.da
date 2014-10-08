@@ -1,0 +1,25 @@
+import sys
+c = import_da('client')
+s = import_da('server')
+
+c.Client
+def main():
+    """Usage: client.da [num_clients]
+    """
+    global c, s
+    nclients = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    nservers = int(sys.argv[2]) if len(sys.argv) > 2 else 3
+    config(clock='Lamport')
+    clients = new(c.Client, num=nclients)
+    servers = new(s.Server, num=nservers)
+    slist = list(servers)
+
+    setup(servers, [slist])
+
+    head, tail = slist[0], slist[-1]
+    print("head: %s, tail: %s" % (head, tail))
+    for c in clients:
+        setup(c, [servers, head, tail])
+
+    start(servers)
+    start(clients)
