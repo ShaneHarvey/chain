@@ -6,14 +6,13 @@ from decimal import Decimal
 
 class Server(process):
 
-    def setup(servers):
+    def setup(servers, bank_name):
         # TODO: Replace with implict place in servers list?
         self.predecessor  = None
         self.sucessor = None
         self.is_head = True
         self.is_tail = True
         self.history = set()
-        self.bank_name = 'Chase'
         # Keys not in
         self.bank = defaultdict(int)
         setup_chain(servers)

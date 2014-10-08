@@ -2,7 +2,7 @@ import sys
 c = import_da('client')
 s = import_da('server')
 
-c.Client
+
 def main():
     """Usage: client.da [num_clients]
     """
@@ -14,7 +14,8 @@ def main():
     servers = new(s.Server, num=nservers)
     slist = list(servers)
 
-    setup(servers, [slist])
+    # Setup the chain for 'Chase' bank
+    setup(servers, [slist, 'Chase'])
 
     head, tail = slist[0], slist[-1]
     print("head: %s, tail: %s" % (head, tail))
