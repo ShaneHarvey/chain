@@ -9,7 +9,7 @@ from decimal import Decimal
 # [vanRenesse2010Replication, Figure 2.5]
 class Client(process):
 
-    def setup(servers):
+    def setup(servers, head, tail):
         # timeout and retransmit after 3 seconds
         # This is the only timeout in the design
         self.T = 3
@@ -19,13 +19,12 @@ class Client(process):
     def receive(msg=('response', r), from_=tail):
         responses.add((tail,r))
 
-    def send_update(update, ammount, bank, account):
+    def send_update(update, amount, bank, account):
         uid = gen_uid(bank, account)
         while True:
-            if servers == set():
+            if not head:
                 return 'unavailable'
-            #head = max(servers)
-            send((update, (uid, ammount)), to=servers)
+            send((update, (uid, amount)), to=head)
             if await(some((_, (ruid, r)) in responses, has=(ruid == uid))):
                 return r
             elif timeout(T):
@@ -33,7 +32,7 @@ class Client(process):
 
     def gen_uid(bank, account):
         seq += 1
-        return (id(0), bank, account, seq)
+        return (self.id, bank, account, seq)
 
     def main():
         for x in range(10):
@@ -42,6 +41,7 @@ class Client(process):
             time.sleep(1)
         time.sleep(3)
         send(('Done',), to=servers)
+        output("Terminating..")
 
 
 class Server(process):
@@ -56,6 +56,17 @@ class Server(process):
         self.bank_name = 'Chase'
         # Keys not in
         self.bank = defaultdict(int)
+        setup_chain(servers)
+
+    def setup_chain(servers):
+        slen = len(servers)
+        i = servers.index(self.id)
+        if i < slen - 1:
+            set_sucessor(servers[i + 1])
+        if i > 0:
+            set_predecessor(servers[i - 1])
+        if not predecessor:
+            output("I am head: %s" % self.id)
 
     def set_predecessor(new_pred):
         self.predecessor = new_pred
@@ -66,37 +77,70 @@ class Server(process):
         self.is_tail = False
 
     def main():
-        await(received(('Done',)))
-        output("Terminating..")
+        # wait for 10 seconds
+        if await(0):
+            output("Terminating..")
+        elif timeout(10):
+            output("Terminating..")
 
     def receive(msg=('balance', (uid, q)), from_=client):
+        # Only tail replies to clients
+        if not is_tail:
+            return
         # get account num from the uid
         acc = uid[2]
         send(('response', (uid, bank[acc])), to=client)
 
-    def receive(msg=('withdrawl', (uid, ammount)), from_=client):
-        pass
-
-    def receive(msg=('deposit', (uid, ammount)), from_=client):
-        # get account num from the uid
+    def receive(msg=('withdrawl', (uid, amount)), from_=p):
+        # If we are not the head server ignore client updates
+        if not is_head and p not in servers:
+            return
+        # get account num from the update id
         acc = uid[2]
         # Deposit his $$$
-        bank[acc] += Decimal(ammount)
-        output("Sending response uid")
-        output(uid)
-        send(('response', (uid, bank[acc])), to=client)
+        bank[acc] -= Decimal(amount)
+        # forward the update
+        fwd_update('withdrawl', uid, amount, bank[acc])
+
+    def receive(msg=('deposit', (uid, amount)), from_=p):
+        # If we are not the head server ignore client updates
+        if not is_head and p not in servers:
+            return
+        # get account num from the update id
+        acc = uid[2]
+        # Deposit his $$$
+        bank[acc] += Decimal(amount)
+        # forward the update
+        fwd_update('deposit', uid, amount, bank[acc])
+
+    def fwd_update(update, uid, amount, new_balance):
+        if is_tail:
+            # Reply to the client
+            output('Sending response to client')
+            send(('response',(uid, new_balance)), to=uid[0])
+        else:
+            # Forward the update to successor
+            output('Forwarding update to successor')
+            send((update, (uid, amount)), to=sucessor)
+
 
 
 def main():
     """Usage: client.da [num_clients]
     """
     nclients = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    nservers = int(sys.argv[2]) if len(sys.argv) > 2 else 3
     config(clock='Lamport')
     clients = new(Client, num=nclients)
-    # TODO: Somehow pass chain of servers to the setup method
-    server = new(Server, num=1)
-    setup(server, [None])
+    servers = new(Server, num=nservers)
+    slist = list(servers)
+
+    setup(servers, [slist])
+
+    head, tail = slist[0], slist[-1]
+    print("head: %s, tail: %s" % (head, tail))
     for c in clients:
-        setup(c, [server])
-    start(server)
+        setup(c, [servers, head, tail])
+
+    start(servers)
     start(clients)
