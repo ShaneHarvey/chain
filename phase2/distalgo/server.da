@@ -7,13 +7,12 @@ from decimal import Decimal
 class Server(process):
 
     def setup(servers, bank_name):
-        # TODO: Replace with implict place in servers list?
-        self.predecessor  = None
-        self.sucessor = None
+        # TODO: Replace with implicit place in servers list?
+        self.predecessor = None
+        self.successor = None
         self.is_head = True
         self.is_tail = True
         self.history = set()
-        # Keys not in
         self.bank = defaultdict(int)
         setup_chain(servers)
 
@@ -21,19 +20,17 @@ class Server(process):
         slen = len(servers)
         i = servers.index(self.id)
         if i < slen - 1:
-            set_sucessor(servers[i + 1])
+            set_successor(servers[i + 1])
         if i > 0:
             set_predecessor(servers[i - 1])
-        if not predecessor:
-            output("I am head: %s" % self.id)
 
     def set_predecessor(new_pred):
-        self.predecessor = new_pred
+        predecessor = new_pred
         is_head = False
 
-    def set_sucessor(new_suc):
-        self.sucessor = new_suc
-        self.is_tail = False
+    def set_successor(new_suc):
+        successor = new_suc
+        is_tail = False
 
     def main():
         # wait for 10 seconds
@@ -80,4 +77,4 @@ class Server(process):
         else:
             # Forward the update to successor
             output('Forwarding update to successor')
-            send((update, (uid, amount)), to=sucessor)
+            send((update, (uid, amount)), to=successor)

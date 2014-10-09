@@ -33,5 +33,4 @@ class Client(process):
             reply = send_update('deposit', '40.00', 'Chase', '001')
             output('reply %s' % reply)
             time.sleep(1)
-        time.sleep(3)
         output("Terminating..")
