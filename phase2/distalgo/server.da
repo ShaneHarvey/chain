@@ -6,12 +6,15 @@ from decimal import Decimal
 
 class Server(process):
 
-    def setup(servers, bank_name):
-        # TODO: Replace with implicit place in servers list?
+    def setup(servers, bank_name, conf):
+        # TODO: Remove servers and setup_chain(servers)
+        # TODO: add predecessor, successor to setup args
+        # TODO: utilize the configuration options
         self.predecessor = None
         self.successor = None
         self.is_head = True
         self.is_tail = True
+        #self.processed_updates
         self.history = set()
         self.bank = defaultdict(int)
         setup_chain(servers)
@@ -33,11 +36,24 @@ class Server(process):
         is_tail = False
 
     def main():
-        # wait for 10 seconds
-        if await(0):
-            output("Terminating..")
-        elif timeout(10):
-            output("Terminating..")
+        t = conf['lifetime']
+        r = conf['receive']
+        s = conf['send']
+        if t >= 0:
+            # wait t seconds, until we send s messages, or receive r messages
+            if await(len(listof(mesg, received(mesg))) == r):
+                pass
+            elif len(listof(mesg, sent(mesg))) == s:
+                pass
+            elif timeout(t):
+                pass
+        else:
+            # wait forever, until we send s messages, or receive r messages
+            if await(len(listof(mesg, received(mesg))) == r):
+                pass
+            elif len(listof(mesg, sent(mesg))) == s:
+                pass
+        output("Terminating..")
 
     def receive(msg=('balance', (uid, q)), from_=client):
         # Only tail replies to clients
@@ -47,16 +63,16 @@ class Server(process):
         acc = uid[2]
         send(('response', (uid, bank[acc])), to=client)
 
-    def receive(msg=('withdrawl', (uid, amount)), from_=p):
+    def receive(msg=('withdrawal', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
-        if not is_head and p not in servers:
+        if not is_head and p is not predecessor:
             return
         # get account num from the update id
         acc = uid[2]
         # Deposit his $$$
         bank[acc] -= Decimal(amount)
         # forward the update
-        fwd_update('withdrawl', uid, amount, bank[acc])
+        fwd_update('withdrawal', uid, amount, bank[acc])
 
     def receive(msg=('deposit', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
@@ -72,6 +88,9 @@ class Server(process):
     def fwd_update(update, uid, amount, new_balance):
         if is_tail:
             # Reply to the client
+            # TODO
+            # This is where we need to reply with
+            # Inconsistent or duplicate reply
             output('Sending response to client')
             send(('response',(uid, new_balance)), to=uid[0])
         else:

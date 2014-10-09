@@ -1,21 +1,47 @@
+import random
+import sys
 import time
 
 
 class Client(process):
 
-    def setup(servers, head, tail):
+    def setup(banks, conf):
         # timeout and retransmit after 3 seconds
         # This is the only timeout in the design
         self.T = 3
         self.responses = set()
         self.seq = 0
+        self.rand_req = False
+        if isinstance(conf['requests'], dict):
+            self.rand_req = True
+            self.seed = conf['requests']['seed']
+            self.num_req = conf['requests']['num_requests']
+            self.prob_balance = conf['requests']['prob_balance']
+            self.prob_deposit = conf['requests']['prob_deposit']
+            self.prob_withdrawal = conf['requests']['prob_withdrawal']
+            #self.prob_transfer = conf['requests']['prob_transfer']
+        elif isinstance(conf['requests'], list):
+            self.r_index = 0
+        else:
+            assert False, 'Error: Invalid conf format: Client "requests" is not a list or dict'
 
     def receive(msg=('response', r), from_=tail):
         responses.add((tail,r))
 
-    def send_update(update, amount, bank, account):
-        uid = gen_uid(bank, account)
+    def send_query(query, uid, bank):
         while True:
+            tail = banks[bank]['tail']
+            if not tail:
+                return 'unavailable'
+            send((query, uid), to=tail)
+            if await(some((_, (ruid, r)) in responses, has=(ruid == uid))):
+                return r
+            elif timeout(T):
+                pass
+
+    def send_update(update, uid, bank, amount):
+        while True:
+            head = banks[bank]['head']
             if not head:
                 return 'unavailable'
             send((update, (uid, amount)), to=head)
@@ -24,13 +50,53 @@ class Client(process):
             elif timeout(T):
                 pass
 
+    def send_request(request):
+        uid = gen_uid(request['bank'], request['account'])
+        if request['request'] == 'balance':
+            return send_query(request['request'], uid, request['bank'])
+        else:
+            return send_update(request['request'], uid, request['bank'], request['amount'])
+
     def gen_uid(bank, account):
         seq += 1
         return (self.id, bank, account, seq)
 
+    def get_request():
+        if rand_req:
+            return gen_rand_req()
+        else:
+            if r_index >= len(conf['requests']):
+                return False
+            r_index += 1
+            return conf['requests'][r_index]
+
+    def gen_rand_req():
+        # We ran out of requests
+        if num_req <= 0:
+            return False
+        num_req -= 1
+        # gen random weighted request type
+        num = random.random()
+        if num < prob_balance:
+            rtype = 'balance'
+        elif num < prob_balance + prob_deposit:
+            rtype = 'deposit'
+        else:
+            rtype = 'withdrawal'
+
+        request = dict()
+        request['request'] = rtype
+        request['bank'] = random.choice([b for b in banks])
+        request['account'] = str(random.randrange(0, 10001))
+        request['amount'] = "%.2f" % random.uniform(0, 10001)
+        return request
+
     def main():
-        for x in range(10):
-            reply = send_update('deposit', '40.00', 'Chase', '001')
+        req = get_request()
+        while req:
+            output("Sending request: %s" % req)
+            reply = send_request(req)
             output('reply %s' % reply)
             time.sleep(1)
+            req = get_request()
         output("Terminating..")

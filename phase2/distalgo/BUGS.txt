@@ -3,78 +3,123 @@ List of bugs:
 If the setup method does not take any args it is not called.
 Even if you explicitly invoke it.
 
-Bug in DA parser: Parser doesn't recongnize tuple argument to the send method
-Example:
-Good:
-    send(('mesg', 'data'), to=p)
+Bug in DA parser: Parser doesn't recongnize tuple variable to the send method
+  Example:
+  Good:
+      send(('mesg', 'data'), to=p)
 
-Bad:
-    mesg = ('mesg', 'data')
-    send(mesg, to=p)
+  Bad:
+      mesg = ('mesg', 'data')
+      send(mesg, to=p)
 
-Good:
-    mesg = ('mesg', 'data')
-    send((mesg,), to=p)
+  Trivial to fix (but should it be necessary?):
+      mesg = ('mesg', 'data')
+      send(tuple(mesg), to=p)
 
-Error cause by the FAILED version:
-PS C:\Users\Shane Harvey\Desktop\535\phase2\distalgo> dar .\client.da
-Traceback (most recent call last):
-  File "C:\DistAlgo\da\api.py", line 123, in import_da
-    res = compiler.ui.main(argv)
-  File "C:\DistAlgo\da\compiler\ui.py", line 279, in main
-    res = dafile_to_pyfile(args)
-  File "C:\DistAlgo\da\compiler\ui.py", line 131, in dafile_to_pyfile
-    pyast = dafile_to_pyast(filename, args)
-  File "C:\DistAlgo\da\compiler\ui.py", line 68, in dafile_to_pyast
-    daast = daast_from_file(filename, args)
-  File "C:\DistAlgo\da\compiler\ui.py", line 53, in daast_from_file
-    dt.visit(pytree)
-  File "C:\Python34\lib\ast.py", line 245, in visit
-    return visitor(node)
-  File "C:\DistAlgo\da\compiler\parser.py", line 478, in visit_Module
-    self.body(node.body)
-  File "C:\DistAlgo\da\compiler\parser.py", line 618, in body
-    self.visit(stmt)
-  File "C:\Python34\lib\ast.py", line 245, in visit
-    return visitor(node)
-  File "C:\DistAlgo\da\compiler\parser.py", line 714, in visit_ClassDef
-    node.body[:bodyidx] + node.body[(bodyidx+1):])
-  File "C:\DistAlgo\da\compiler\parser.py", line 650, in proc_body
-    self.visit(stmt)
-  File "C:\Python34\lib\ast.py", line 245, in visit
-    return visitor(node)
-  File "C:\DistAlgo\da\compiler\parser.py", line 755, in visit_FunctionDef
-    self.body(node.body)
-  File "C:\DistAlgo\da\compiler\parser.py", line 618, in body
-    self.visit(stmt)
-  File "C:\Python34\lib\ast.py", line 245, in visit
-    return visitor(node)
-  File "C:\DistAlgo\da\compiler\parser.py", line 947, in visit_Expr
-    stmtobj.message = self.parse_message(e.args[0])
-  File "C:\DistAlgo\da\compiler\parser.py", line 916, in parse_message
-    elts = node.elts
-AttributeError: 'Name' object has no attribute 'elts'
+  Error cause by the FAILED version:
+  PS C:\Users\Shane Harvey\Desktop\535\phase2\distalgo> dar .\client.da
+  Traceback (most recent call last):
+    File "C:\DistAlgo\da\api.py", line 123, in import_da
+      res = compiler.ui.main(argv)
+    File "C:\DistAlgo\da\compiler\ui.py", line 279, in main
+      res = dafile_to_pyfile(args)
+    File "C:\DistAlgo\da\compiler\ui.py", line 131, in dafile_to_pyfile
+      pyast = dafile_to_pyast(filename, args)
+    File "C:\DistAlgo\da\compiler\ui.py", line 68, in dafile_to_pyast
+      daast = daast_from_file(filename, args)
+    File "C:\DistAlgo\da\compiler\ui.py", line 53, in daast_from_file
+      dt.visit(pytree)
+    File "C:\Python34\lib\ast.py", line 245, in visit
+      return visitor(node)
+    File "C:\DistAlgo\da\compiler\parser.py", line 478, in visit_Module
+      self.body(node.body)
+    File "C:\DistAlgo\da\compiler\parser.py", line 618, in body
+      self.visit(stmt)
+    File "C:\Python34\lib\ast.py", line 245, in visit
+      return visitor(node)
+    File "C:\DistAlgo\da\compiler\parser.py", line 714, in visit_ClassDef
+      node.body[:bodyidx] + node.body[(bodyidx+1):])
+    File "C:\DistAlgo\da\compiler\parser.py", line 650, in proc_body
+      self.visit(stmt)
+    File "C:\Python34\lib\ast.py", line 245, in visit
+      return visitor(node)
+    File "C:\DistAlgo\da\compiler\parser.py", line 755, in visit_FunctionDef
+      self.body(node.body)
+    File "C:\DistAlgo\da\compiler\parser.py", line 618, in body
+      self.visit(stmt)
+    File "C:\Python34\lib\ast.py", line 245, in visit
+      return visitor(node)
+    File "C:\DistAlgo\da\compiler\parser.py", line 947, in visit_Expr
+      stmtobj.message = self.parse_message(e.args[0])
+    File "C:\DistAlgo\da\compiler\parser.py", line 916, in parse_message
+      elts = node.elts
+  AttributeError: 'Name' object has no attribute 'elts'
 
-During handling of the above exception, another exception occurred:
+  During handling of the above exception, another exception occurred:
 
-Traceback (most recent call last):
-  File "\DistAlgo\bin\\dar", line 18, in <module>
-    run_name="__main__", alter_sys=True)
-  File "C:\Python34\lib\runpy.py", line 182, in run_module
-    return _run_module_code(code, init_globals, run_name, mod_spec)
-  File "C:\Python34\lib\runpy.py", line 96, in _run_module_code
-    mod_name, mod_spec, pkg_name, script_name)
-  File "C:\Python34\lib\runpy.py", line 85, in _run_code
-    exec(code, run_globals)
-  File "C:\DistAlgo\da\__main__.py", line 112, in <module>
-    libmain()
-  File "C:\DistAlgo\da\__main__.py", line 104, in libmain
-    entrypoint()
-  File "C:\DistAlgo\da\api.py", line 184, in entrypoint
-    compiler_args=GlobalOptions.compiler_flags.split())
-  File "C:\DistAlgo\da\common.py", line 158, in _func_impl
-    result = func(*args, **kwargs)
-  File "C:\DistAlgo\da\api.py", line 125, in import_da
-    raise RuntimeError("Compiler failure!", err)
-RuntimeError: ('Compiler failure!', AttributeError("'Name' object has no attribute 'elts'",))
-PS C:\Users\Shane Harvey\Desktop\535\phase2\distalgo>
+  Traceback (most recent call last):
+    File "\DistAlgo\bin\\dar", line 18, in <module>
+      run_name="__main__", alter_sys=True)
+    File "C:\Python34\lib\runpy.py", line 182, in run_module
+      return _run_module_code(code, init_globals, run_name, mod_spec)
+    File "C:\Python34\lib\runpy.py", line 96, in _run_module_code
+      mod_name, mod_spec, pkg_name, script_name)
+    File "C:\Python34\lib\runpy.py", line 85, in _run_code
+      exec(code, run_globals)
+    File "C:\DistAlgo\da\__main__.py", line 112, in <module>
+      libmain()
+    File "C:\DistAlgo\da\__main__.py", line 104, in libmain
+      entrypoint()
+    File "C:\DistAlgo\da\api.py", line 184, in entrypoint
+      compiler_args=GlobalOptions.compiler_flags.split())
+    File "C:\DistAlgo\da\common.py", line 158, in _func_impl
+      result = func(*args, **kwargs)
+    File "C:\DistAlgo\da\api.py", line 125, in import_da
+      raise RuntimeError("Compiler failure!", err)
+  RuntimeError: ('Compiler failure!', AttributeError("'Name' object has no attribute 'elts'",))
+  PS C:\Users\Shane Harvey\Desktop\535\phase2\distalgo>
+
+
+Bug in DA parser: can't parse "with" statements :(
+  Example:
+  with open(file_name) as f:
+    pass
+
+  Triggers:
+  PS C:\Users\Shane Harvey\Desktop\535\phase2\distalgo> dac .\main.da
+  .\main.da compiled with 0 errors and 0 warnings.
+  Traceback (most recent call last):
+    File "C:\DistAlgo\da\api.py", line 123, in import_da
+      res = compiler.ui.main(argv)
+    File "C:\DistAlgo\da\compiler\ui.py", line 279, in main
+      res = dafile_to_pyfile(args)
+    File "C:\DistAlgo\da\compiler\ui.py", line 131, in dafile_to_pyfile
+      pyast = dafile_to_pyast(filename, args)
+    File "C:\DistAlgo\da\compiler\ui.py", line 73, in dafile_to_pyast
+      pyast = PythonGenerator(filename).visit(daast)
+    File "C:\DistAlgo\da\compiler\pygen.py", line 269, in visit
+      res = super().visit(node)
+    File "C:\Python34\lib\ast.py", line 245, in visit
+      return visitor(node)
+    File "C:\DistAlgo\da\compiler\pygen.py", line 300, in visit_Program
+      body.extend(self.body(node.body))
+    File "C:\DistAlgo\da\compiler\pygen.py", line 284, in body
+      ast = self.visit(stmt)
+    File "C:\DistAlgo\da\compiler\pygen.py", line 269, in visit
+      res = super().visit(node)
+    File "C:\Python34\lib\ast.py", line 245, in visit
+      return visitor(node)
+    File "C:\DistAlgo\da\compiler\pygen.py", line 407, in visit_Function
+      fd.body = self.body(node.body)
+    File "C:\DistAlgo\da\compiler\pygen.py", line 284, in body
+      ast = self.visit(stmt)
+    File "C:\DistAlgo\da\compiler\pygen.py", line 269, in visit
+      res = super().visit(node)
+    File "C:\Python34\lib\ast.py", line 245, in visit
+      return visitor(node)
+    File "C:\DistAlgo\da\compiler\pygen.py", line 935, in visit_WithStmt
+      return concat_bodies([e[0] for e in items], [ast])
+    File "C:\DistAlgo\da\compiler\pygen.py", line 935, in <listcomp>
+      return concat_bodies([e[0] for e in items], [ast])
+  TypeError: 'withitem' object does not support indexing
+  PS C:\Users\Shane Harvey\Desktop\535\phase2\distalgo>

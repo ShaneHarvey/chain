@@ -95,7 +95,7 @@
         "num_requests": 50,
         "prob_balance": 0.5,
         "prob_deposit": 0.3,
-        "prob_withdraw": 0.2,
+        "prob_withdrawal": 0.2,
         "prob_transfer": 0.0
       }
     },
@@ -118,7 +118,6 @@
         },
         {
           "request": "balance",
-          "bank": "Chase",
           "bank": "Chase",
           "account": "0001"
         },

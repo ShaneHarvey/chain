@@ -39,17 +39,16 @@
           "request": "deposit",
           "bank": "Chase",
           "account": "0001",
-          "amount": 150.00
+          "amount": "150.00"
         },
         {
           "request": "deposit",
           "bank": "Chase",
           "account": "0020",
-          "amount": 150.00
+          "amount": "150.00"
         },
         {
           "request": "balance",
-          "bank": "Chase",
           "bank": "Chase",
           "account": "0001"
         },
@@ -62,13 +61,13 @@
           "request": "withdrawl",
           "bank": "Chase",
           "account": "0001",
-          "amount": 50.00
+          "amount": "50.00"
         },
         {
           "request": "withdrawl",
           "bank": "Chase",
           "account": "0020",
-          "amount": 250.00
+          "amount": "250.00"
         }
       ]
     }
