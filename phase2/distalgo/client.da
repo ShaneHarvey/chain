@@ -9,7 +9,7 @@ class Client(process):
         # timeout and retransmit after 3 seconds
         # This is the only timeout in the design
         self.T = 3
-        self.responses = set()
+        self.replies = set()
         self.seq = 0
         self.rand_req = False
         self.valid_reqs = ['balance', 'deposit', 'withdrawal']
@@ -26,8 +26,8 @@ class Client(process):
         else:
             assert False, 'Error: Invalid conf format: Client "requests" is not a list or dict'
 
-    def receive(msg=('response', r), from_=tail):
-        responses.add((tail,r))
+    def receive(msg=('reply', r), from_=tail):
+        replies.add((tail,r))
 
     def send_query(query, uid, bank):
         while True:
@@ -35,7 +35,7 @@ class Client(process):
             if not tail:
                 return 'unavailable'
             send((query, uid), to=tail)
-            if await(some((_, (ruid, r)) in responses, has=(ruid == uid))):
+            if await(some((_, (ruid, outcome, r)) in replies, has=(ruid == uid))):
                 return r
             elif timeout(T):
                 pass
@@ -46,7 +46,7 @@ class Client(process):
             if not head:
                 return 'unavailable'
             send((update, (uid, amount)), to=head)
-            if await(some((_, (ruid, r)) in responses, has=(ruid == uid))):
+            if await(some((_, (ruid, outcome, r)) in replies, has=(ruid == uid))):
                 return r
             elif timeout(T):
                 pass

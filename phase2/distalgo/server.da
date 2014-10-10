@@ -9,7 +9,7 @@ class Server(process):
     def setup(servers, bank_name, conf):
         # TODO: Remove servers and setup_chain(servers)
         # TODO: add predecessor, successor to setup args
-        # TODO: utilize the configuration options
+        # TODO: Change String outcome to an integer
         self.predecessor = None
         self.successor = None
         self.is_head = True
@@ -61,7 +61,8 @@ class Server(process):
             return
         # get account num from the uid
         acc = uid[2]
-        send(('response', (uid, bank[acc])), to=client)
+        outcome = 'processed'
+        send(('reply', (uid, outcome, bank[acc])), to=client)
 
     def receive(msg=('withdrawal', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
@@ -70,9 +71,13 @@ class Server(process):
         # get account num from the update id
         acc = uid[2]
         # withdrawal his $$$
-        bank[acc] -= Decimal(amount)
+        if bank[acc] >= Decimal(amount):
+            bank[acc] -= Decimal(amount)
+            outcome = 'processed'
+        else:
+            outcome = 'InsufficientFunds'
         # forward the update
-        fwd_update('withdrawal', uid, amount, bank[acc])
+        fwd_update('withdrawal', uid, amount, bank[acc], outcome)
 
     def receive(msg=('deposit', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
@@ -83,16 +88,17 @@ class Server(process):
         # Deposit his $$$
         bank[acc] += Decimal(amount)
         # forward the update
-        fwd_update('deposit', uid, amount, bank[acc])
+        outcome = 'processed'
+        fwd_update('deposit', uid, amount, bank[acc], outcome)
 
-    def fwd_update(update, uid, amount, new_balance):
+    def fwd_update(update, uid, amount, new_balance, outcome):
         if is_tail:
             # Reply to the client
             # TODO
             # This is where we need to reply with
             # Inconsistent or duplicate reply
-            output('Sending response to client')
-            send(('response', (uid, new_balance)), to=uid[0])
+            output('Sending reply to client')
+            send(('reply', (uid, outcome, new_balance)), to=uid[0])
         else:
             # Forward the update to successor
             output('FWD: send((%s, (%s, %s)), to=%s)' % (update, uid, amount, successor))
