@@ -2,11 +2,12 @@
 from collections import defaultdict
 # Decimal is used to store monetary values precisely
 from decimal import Decimal
+import logging
 
 
 class Server(process):
 
-    def setup(servers, bank_name, conf):
+    def setup(servers, bank_name, conf, logfile):
         # TODO: Remove servers and setup_chain(servers)
         # TODO: add predecessor, successor to setup args
         # TODO: Change String outcome to an integer
@@ -35,7 +36,19 @@ class Server(process):
         successor = new_suc
         is_tail = False
 
+    def setup_logfile():
+        rootlog = logging.getLogger('')
+        filelvl = logging.INFO
+        fh = logging.FileHandler(logfile)
+        formatter = logging.Formatter('[%(asctime)s]%(name)s: %(message)s')
+        fh.setFormatter(formatter)
+        fh.setLevel(filelvl)
+        rootlog._filelvl = filelvl
+        rootlog.addHandler(fh)
+        output('Logging to %s' % logfile)
+
     def main():
+        setup_logfile()
         t = conf['lifetime']
         r = conf['receive']
         s = conf['send']

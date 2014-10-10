@@ -1,11 +1,12 @@
 import random
+import logging
 import sys
 import time
 
 
 class Client(process):
 
-    def setup(banks, conf):
+    def setup(banks, conf, logfile):
         # timeout and retransmit after 3 seconds
         # This is the only timeout in the design
         self.T = 3
@@ -99,7 +100,19 @@ class Client(process):
             return False
         return True
 
+    def setup_logfile():
+        rootlog = logging.getLogger('')
+        filelvl = logging.INFO
+        fh = logging.FileHandler(logfile)
+        formatter = logging.Formatter('[%(asctime)s]%(name)s: %(message)s')
+        fh.setFormatter(formatter)
+        fh.setLevel(filelvl)
+        rootlog._filelvl = filelvl
+        rootlog.addHandler(fh)
+        output('Logging to %s' % logfile)
+
     def main():
+        setup_logfile()
         req = get_request()
         while req:
             output("Sending request: %s" % req)
