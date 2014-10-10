@@ -41,6 +41,7 @@ def main():
             setup(serv, [slist, bank_name, serv_conf])
         # Save head and tail to banks dictionary
         banks[bank_name] = {'head': slist[0], 'tail': slist[-1]}
+        start(servers)
 
     # Now setup the clients
     clients = new(c.Client, num=len(client_list))
@@ -48,5 +49,4 @@ def main():
         # pass bank["Chase"] : {head: head_s, tail: tail_s}
         setup(cli, [banks, cli_conf])
 
-    start(servers)
     start(clients)
