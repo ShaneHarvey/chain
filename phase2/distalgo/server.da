@@ -55,7 +55,7 @@ class Server(process):
                 pass
         output("Terminating..")
 
-    def receive(msg=('balance', (uid, q)), from_=client):
+    def receive(msg=('balance', uid), from_=client):
         # Only tail replies to clients
         if not is_tail:
             return
@@ -65,18 +65,18 @@ class Server(process):
 
     def receive(msg=('withdrawal', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
-        if not is_head and p is not predecessor:
+        if not is_head and (p != predecessor):
             return
         # get account num from the update id
         acc = uid[2]
-        # Deposit his $$$
+        # withdrawal his $$$
         bank[acc] -= Decimal(amount)
         # forward the update
         fwd_update('withdrawal', uid, amount, bank[acc])
 
     def receive(msg=('deposit', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
-        if not is_head and p not in servers:
+        if not is_head and (p != predecessor):
             return
         # get account num from the update id
         acc = uid[2]
@@ -92,8 +92,8 @@ class Server(process):
             # This is where we need to reply with
             # Inconsistent or duplicate reply
             output('Sending response to client')
-            send(('response',(uid, new_balance)), to=uid[0])
+            send(('response', (uid, new_balance)), to=uid[0])
         else:
             # Forward the update to successor
-            output('Forwarding update to successor')
+            output('FWD: send((%s, (%s, %s)), to=%s)' % (update, uid, amount, successor))
             send((update, (uid, amount)), to=successor)

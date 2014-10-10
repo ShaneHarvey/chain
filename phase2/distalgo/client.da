@@ -12,6 +12,7 @@ class Client(process):
         self.responses = set()
         self.seq = 0
         self.rand_req = False
+        self.valid_reqs = ['balance', 'deposit', 'withdrawal']
         if isinstance(conf['requests'], dict):
             self.rand_req = True
             self.seed = conf['requests']['seed']
@@ -67,8 +68,9 @@ class Client(process):
         else:
             if r_index >= len(conf['requests']):
                 return False
+            req = conf['requests'][r_index]
             r_index += 1
-            return conf['requests'][r_index]
+            return req
 
     def gen_rand_req():
         # We ran out of requests
@@ -90,6 +92,12 @@ class Client(process):
         request['account'] = str(random.randrange(0, 10001))
         request['amount'] = "%.2f" % random.uniform(0, 10001)
         return request
+
+    def valid_request(req):
+        # TODO: FINISH validiateing request object
+        if req['request'] not in valid_reqs:
+            return False
+        return True
 
     def main():
         req = get_request()

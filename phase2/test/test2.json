@@ -28,7 +28,7 @@
         }
       ]
     },
-    "TD Bank": {
+    "TD": {
       "chain": [
         {
           "ip": "localhost",
@@ -108,13 +108,13 @@
           "request": "deposit",
           "bank": "Chase",
           "account": "0001",
-          "amount": 150.00
+          "amount": "150.00"
         },
         {
           "request": "deposit",
           "bank": "Chase",
           "account": "0020",
-          "amount": 150.00
+          "amount": "150.00"
         },
         {
           "request": "balance",
@@ -127,16 +127,16 @@
           "account": "0020"
         },
         {
-          "request": "withdrawl",
+          "request": "withdrawal",
           "bank": "Chase",
           "account": "0001",
-          "amount": 50.00
+          "amount": "50.00"
         },
         {
-          "request": "withdrawl",
+          "request": "withdrawal",
           "bank": "Chase",
           "account": "0020",
-          "amount": 250.00
+          "amount": "250.00"
         }
       ]
     }

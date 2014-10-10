@@ -19,7 +19,7 @@ def main():
     """
     global c, s
     # parse config to find bank servers and number of clients
-    config_file = int(sys.argv[1]) if len(sys.argv) > 1 else '../test/test1.json'
+    config_file = sys.argv[1] if len(sys.argv) > 1 else '../test/test1.json'
     bank_dict, client_list = parse_config(config_file)
     if not client_list:
         print('Error: empty client list from file %s' % config_file)

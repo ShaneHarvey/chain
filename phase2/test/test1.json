@@ -58,13 +58,13 @@
           "account": "0020"
         },
         {
-          "request": "withdrawl",
+          "request": "withdrawal",
           "bank": "Chase",
           "account": "0001",
           "amount": "50.00"
         },
         {
-          "request": "withdrawl",
+          "request": "withdrawal",
           "bank": "Chase",
           "account": "0020",
           "amount": "250.00"
