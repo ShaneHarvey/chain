@@ -41,12 +41,12 @@ class Client(process):
         num_received += 1
         output('Received message #%s: %s from=%s' % (str(num_received), str(('reply', r)), str(tail)))
 
-    def send_query(query, uid, bank):
+    def send_query(query, uid, account, bank):
         while True:
             tail = banks[bank]['tail']
             if not tail:
                 return 'unavailable'
-            message = (query, uid)
+            message = (query, (uid, account))
             # LOG
             log_sent(message, tail)
             send(message, to=tail)
@@ -55,13 +55,13 @@ class Client(process):
             elif timeout(T):
                 pass
 
-    def send_update(update, uid, bank, amount):
+    def send_update(update, uid, account, amount, bank):
         while True:
             head = banks[bank]['head']
             if not head:
                 return 'unavailable'
 
-            message = (update, (uid, amount))
+            message = (update, (uid, account, amount))
             # LOG
             log_sent(message, head)
             send(message, to=head)
@@ -74,9 +74,9 @@ class Client(process):
     def send_request(request):
         uid = gen_uid(request['bank'], request['account'])
         if request['request'] == 'balance':
-            return send_query(request['request'], uid, request['bank'])
+            return send_query(request['request'], uid, request['account'], request['bank'])
         else:
-            return send_update(request['request'], uid, request['bank'], request['amount'])
+            return send_update(request['request'], uid, request['account'], request['amount'], request['bank'])
 
 #TODO: Should make UID a string
     def gen_uid(bank, account):
