@@ -31,7 +31,7 @@
   },
   "clients": [
     {
-      "rely_timeout": 3,
+      "reply_timeout": 3,
       "request_retries": 3,
       "resend_head": false,
       "requests": [

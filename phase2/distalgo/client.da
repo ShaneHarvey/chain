@@ -7,15 +7,16 @@ const = import_da('const')
 class Client(process):
 
     def setup(banks, conf, logfile):
-        # timeout and retransmit after 3 seconds
-        # This is the only timeout in the design
-        self.T = 3
         self.replies = set()
         self.num_received = 0
         self.num_sent = 0
         self.seq = 0
         self.rand_req = False
         self.valid_reqs = ['balance', 'deposit', 'withdrawal']
+        # Parse conf
+        self.reply_timeout = conf["reply_timeout"]
+        self.request_retries = conf["request_retries"]
+        self.resend_head = conf["resend_head"]
         if isinstance(conf['requests'], dict):
             self.rand_req = True
             self.num_req = conf['requests']['num_requests']
@@ -42,7 +43,8 @@ class Client(process):
         output('Received message #%s: %s from=%s' % (str(num_received), str(('reply', r)), str(tail)))
 
     def send_query(query, uid, account, bank):
-        while True:
+        retry = 0
+        for i in range(request_retries):
             tail = banks[bank]['tail']
             if not tail:
                 return 'unavailable'
@@ -52,11 +54,18 @@ class Client(process):
             send(message, to=tail)
             if await(some((_, (ruid, outcome, r)) in replies, has=(ruid == uid))):
                 return (outcome, r)
-            elif timeout(T):
-                pass
+            elif timeout(reply_timeout):
+                output('Request timed out after %s seconds' % reply_timeout)
+                retry += 1
+                if retry > request_retries:
+                    output('Giving up after sending request %s times' % retry)
+                    return None
+                else:
+                    output('Resending request')
 
     def send_update(update, uid, account, amount, bank):
-        while True:
+        retry = 0
+        for i in range(request_retries):
             head = banks[bank]['head']
             if not head:
                 return 'unavailable'
@@ -66,10 +75,16 @@ class Client(process):
             log_sent(message, head)
             send(message, to=head)
             if await(some((msg_type, (ruid, outcome, r)) in replies, has=(ruid == uid))):
-                replies -= {(msg_type, (ruid, outcome, r))}
+                replies.remove((msg_type, (ruid, outcome, r)))
                 return (outcome, r)
-            elif timeout(T):
-                pass
+            elif timeout(reply_timeout):
+                output('Request timed out after %s seconds' % reply_timeout)
+                retry += 1
+                if retry > request_retries:
+                    output('Giving up after sending request %s times' % retry)
+                    return None
+                else:
+                    output('Resending request')
 
     def send_request(request):
         uid = gen_uid(request['bank'], request['account'])
@@ -141,6 +156,12 @@ class Client(process):
         else:
             output('Shutting down after sending %s messages from config' % \
                     len(req_list))
+        output('Timeout before resending a request is %s seconds' % reply_timeout)
+        output('Will re-send a request at most %s times' % request_retries)
+        if resend_head:
+            output('Will re-send outstanding request to new head')
+        else:
+            output('Will NOT re-send outstanding request to new head')
         output('*** Initial settings ***')
 
 
