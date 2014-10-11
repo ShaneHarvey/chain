@@ -163,11 +163,11 @@ class Server(process):
         assert uid not in updates, 'Error: request id %s already exisits in updates' % str(uid)
         updates[uid] = (request, reply)
 
-    def get_prev_reply(uid):
-        return updates[uid][1] if uid in updates else None
-
     def get_prev_mesg(uid):
-        return updates[uid][0] if uid in updates else None
+        return updates[uid][0]
+
+    def get_prev_reply(uid):
+        return updates[uid][1]
 
     def dup_or_incon(uid, req_msg):
         """
@@ -179,8 +179,10 @@ class Server(process):
             # We have processed this uid already
             if req_msg == get_prev_mesg(uid):
                 # DUPLICATE RESEND ORIGIN
+                output('\nDUPLICATE RESEND ORIGIN\n')
                 return get_prev_reply(uid)
             else:
                 # Inconsistent
+                output('\nINCONSISTENT WITH updates\n')
                 return ('reply', (uid, const.INCONSISTENT, bank[uid[2]]))
         return None

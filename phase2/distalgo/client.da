@@ -65,7 +65,8 @@ class Client(process):
             # LOG
             log_sent(message, head)
             send(message, to=head)
-            if await(some((_, (ruid, outcome, r)) in replies, has=(ruid == uid))):
+            if await(some((msg_type, (ruid, outcome, r)) in replies, has=(ruid == uid))):
+                replies -= {(msg_type, (ruid, outcome, r))}
                 return (outcome, r)
             elif timeout(T):
                 pass
@@ -77,6 +78,7 @@ class Client(process):
         else:
             return send_update(request['request'], uid, request['bank'], request['amount'])
 
+#TODO: Should make UID a string
     def gen_uid(bank, account):
         seq += 1
         return (self.id, bank, account, seq)
@@ -147,7 +149,7 @@ class Client(process):
         print_init_settings()
         req = get_request()
         while req:
-            output("Sending request: %s" % req)
+            #output("Sending request: %s" % req)
             reply = send_request(req)
             output('reply %s' % str(reply))
             #time.sleep(1)

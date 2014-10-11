@@ -44,6 +44,18 @@
         {
           "request": "deposit",
           "bank": "Chase",
+          "account": "0001",
+          "amount": "150.00"
+        },
+        {
+          "request": "withdrawal",
+          "bank": "Chase",
+          "account": "0001",
+          "amount": "150.00"
+        },
+        {
+          "request": "deposit",
+          "bank": "Chase",
           "account": "0020",
           "amount": "150.00"
         },
