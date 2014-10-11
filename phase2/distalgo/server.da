@@ -21,6 +21,8 @@ class Server(process):
         self.lifetime = conf['lifetime']
         self.recv_limit = conf['receive']
         self.send_limit = conf['send']
+        self.num_received = 0
+        self.num_sent = 0
         setup_chain(servers)
 
     def setup_chain(servers):
@@ -95,19 +97,24 @@ class Server(process):
         output("Terminating..")
 
     def receive(msg=('balance', (uid, account)), from_=client):
+        this_msg = ('balance', (uid, account))
+        log_recv(this_msg, client)
         # Only tail replies to clients
         if not is_tail:
             return
         outcome = const.PROCESSED
-        send(('reply', (uid, outcome, bank[account])), to=client)
+        reply_msg = ('reply', (uid, outcome, bank[account]))
+        log_sent(reply_msg, client)
+        send(reply_msg, to=client)
 
 # TODO: COMBINE these 2 methods!
 
     def receive(msg=('withdrawal', (uid, account, amount)), from_=p):
+        this_msg = ('withdrawal', (uid, account, amount))
+        log_recv(this_msg, p)
         # If we are not the head server ignore client updates
         if not is_head and (p != predecessor):
             return
-        this_msg = ('withdrawal', (uid, account, amount))
 
         # check if this request is a duplicate or inconsisternt
         reply = dup_or_incon(uid, this_msg)
@@ -126,10 +133,11 @@ class Server(process):
         fwd_update(this_msg, reply, uid[0])
 
     def receive(msg=('deposit', (uid, account, amount)), from_=p):
+        this_msg = ('deposit', (uid, account, amount))
+        log_recv(this_msg, p)
         # If we are not the head server ignore client updates
         if not is_head and (p != predecessor):
             return
-        this_msg = ('deposit', (uid, account, amount))
 
         # check if this request is a duplicate or inconsisternt
         reply = dup_or_incon(uid, this_msg)
@@ -146,11 +154,11 @@ class Server(process):
     def fwd_update(orig_msg, reply, client):
         if is_tail:
             # Reply to the client
-            output('Sending client reply %s' % str(reply))
+            log_sent(reply, client)
             send(reply, to=client)
         else:
             # Forward the update to successor
-            output('Forwarding update %s' % str(orig_msg))
+            log_sent(orig_msg, successor)
             send(orig_msg, to=successor)
 
     def add_to_updates(uid, request, reply):
@@ -180,3 +188,13 @@ class Server(process):
                 output('\nINCONSISTENT WITH updates\n')
                 return ('reply', (uid, const.INCONSISTENT, bank[uid[2]]))
         return None
+
+    def log_sent(message, dest):
+        num_sent += 1
+        output('Sending message #%s: %s to=%s' % \
+            (str(num_sent), str(message), str(dest)))
+
+    def log_recv(message, source):
+        num_received += 1
+        output('Received message #%s: %s from=%s' % \
+            (str(num_received), str(message), str(source)))

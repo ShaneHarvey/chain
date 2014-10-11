@@ -14,8 +14,8 @@ class Client(process):
         self.rand_req = False
         self.valid_reqs = ['balance', 'deposit', 'withdrawal']
         # Parse conf
-        self.reply_timeout = conf["reply_timeout"]
-        self.request_retries = conf["request_retries"]
+        self.reply_timeout = conf['reply_timeout']
+        self.request_retries = conf['request_retries']
         self.resend_head = conf["resend_head"]
         if isinstance(conf['requests'], dict):
             self.rand_req = True
@@ -40,7 +40,8 @@ class Client(process):
         replies.add((tail,r))
         # LOG
         num_received += 1
-        output('Received message #%s: %s from=%s' % (str(num_received), str(('reply', r)), str(tail)))
+        output('Received message #%s: %s from=%s' % \
+            (str(num_received), str(('reply', r)), str(tail)))
 
     def send_query(query, uid, account, bank):
         retry = 0
