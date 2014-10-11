@@ -2,7 +2,7 @@ import random
 import logging
 import sys
 import time
-
+const = import_da('const')
 
 class Client(process):
 
@@ -11,12 +11,13 @@ class Client(process):
         # This is the only timeout in the design
         self.T = 3
         self.replies = set()
+        self.num_received = 0
+        self.num_sent = 0
         self.seq = 0
         self.rand_req = False
         self.valid_reqs = ['balance', 'deposit', 'withdrawal']
         if isinstance(conf['requests'], dict):
             self.rand_req = True
-            self.seed = conf['requests']['seed']
             self.num_req = conf['requests']['num_requests']
             self.prob_balance = conf['requests']['prob_balance']
             self.prob_deposit = conf['requests']['prob_deposit']
@@ -24,20 +25,33 @@ class Client(process):
             #self.prob_transfer = conf['requests']['prob_transfer']
         elif isinstance(conf['requests'], list):
             self.r_index = 0
+            self.req_list = conf['requests']
         else:
             assert False, 'Error: Invalid conf format: Client "requests" is not a list or dict'
 
+    def log_sent(message, dest):
+        num_sent += 1
+        output('Sending message #%s: %s to=%s' % \
+            (str(num_sent), str(message), str(dest)))
+
+
     def receive(msg=('reply', r), from_=tail):
         replies.add((tail,r))
+        # LOG
+        num_received += 1
+        output('Received message #%s: %s from=%s' % (str(num_received), str(('reply', r)), str(tail)))
 
     def send_query(query, uid, bank):
         while True:
             tail = banks[bank]['tail']
             if not tail:
                 return 'unavailable'
-            send((query, uid), to=tail)
+            message = (query, uid)
+            # LOG
+            log_sent(message, tail)
+            send(message, to=tail)
             if await(some((_, (ruid, outcome, r)) in replies, has=(ruid == uid))):
-                return r
+                return (outcome, r)
             elif timeout(T):
                 pass
 
@@ -46,9 +60,13 @@ class Client(process):
             head = banks[bank]['head']
             if not head:
                 return 'unavailable'
-            send((update, (uid, amount)), to=head)
+
+            message = (update, (uid, amount))
+            # LOG
+            log_sent(message, head)
+            send(message, to=head)
             if await(some((_, (ruid, outcome, r)) in replies, has=(ruid == uid))):
-                return r
+                return (outcome, r)
             elif timeout(T):
                 pass
 
@@ -67,9 +85,9 @@ class Client(process):
         if rand_req:
             return gen_rand_req()
         else:
-            if r_index >= len(conf['requests']):
+            if r_index >= len(req_list):
                 return False
-            req = conf['requests'][r_index]
+            req = req_list[r_index]
             r_index += 1
             return req
 
@@ -109,15 +127,29 @@ class Client(process):
         fh.setLevel(filelvl)
         rootlog._filelvl = filelvl
         rootlog.addHandler(fh)
-        output('Logging to %s' % logfile)
+
+    def print_init_settings():
+        output('*** Initial settings ***')
+
+        if rand_req:
+            output('Shutting down after sending %s random messages' % num_req)
+            output('Probabilities: %s%% balance, %s%% deposit, %s%% withdrawal'\
+                    % (prob_balance, prob_deposit, prob_withdrawal))
+            output('Sending requests randomly to %s' % ' or '.join(banks.keys()))
+        else:
+            output('Shutting down after sending %s messages from config' % \
+                    len(req_list))
+        output('*** Initial settings ***')
+
 
     def main():
         setup_logfile()
+        print_init_settings()
         req = get_request()
         while req:
             output("Sending request: %s" % req)
             reply = send_request(req)
-            output('reply %s' % reply)
-            time.sleep(1)
+            output('reply %s' % str(reply))
+            #time.sleep(1)
             req = get_request()
         output("Terminating..")

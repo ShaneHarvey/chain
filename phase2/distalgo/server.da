@@ -3,6 +3,7 @@ from collections import defaultdict
 # Decimal is used to store monetary values precisely
 from decimal import Decimal
 import logging
+const = import_da('const')
 
 
 class Server(process):
@@ -10,14 +11,16 @@ class Server(process):
     def setup(servers, bank_name, conf, logfile):
         # TODO: Remove servers and setup_chain(servers)
         # TODO: add predecessor, successor to setup args
-        # TODO: Change String outcome to an integer
         self.predecessor = None
         self.successor = None
         self.is_head = True
         self.is_tail = True
         #self.processed_updates
-        self.history = set()
+        self.updates = dict()
         self.bank = defaultdict(int)
+        self.lifetime = conf['lifetime']
+        self.recv_limit = conf['receive']
+        self.send_limit = conf['send']
         setup_chain(servers)
 
     def setup_chain(servers):
@@ -45,26 +48,49 @@ class Server(process):
         fh.setLevel(filelvl)
         rootlog._filelvl = filelvl
         rootlog.addHandler(fh)
-        output('Logging to %s' % logfile)
+
+    def print_init_settings():
+        output('*** Initial settings ***')
+        if is_head:
+            output('Operating as head server')
+        if is_tail:
+            output('Operating as tail server')
+        if not is_tail and not is_head:
+            output('Operating as internal server')
+        if predecessor:
+            output('Predecessor is %s' % predecessor)
+        if successor:
+            output('Successor is %s' % successor)
+        if lifetime >= 0:
+            output('Server will shutdown after %s seconds' % lifetime)
+        else:
+            output('Server has no time constraint')
+        if recv_limit >= 0:
+            output('Server will shutdown after receiving %s messages' % recv_limit)
+        else:
+            output('Server has no message receive constraint')
+        if send_limit >= 0:
+            output('Server will shutdown after sending %s messages' % send_limit)
+        else:
+            output('Server has no message send constraint')
+        output('*** Initial settings ***')
 
     def main():
         setup_logfile()
-        t = conf['lifetime']
-        r = conf['receive']
-        s = conf['send']
-        if t >= 0:
+        print_init_settings()
+        if lifetime >= 0:
             # wait t seconds, until we send s messages, or receive r messages
-            if await(len(listof(mesg, received(mesg))) == r):
+            if await(len(listof(mesg, received(mesg))) == recv_limit):
                 pass
-            elif len(listof(mesg, sent(mesg))) == s:
+            elif len(listof(mesg, sent(mesg))) == send_limit:
                 pass
-            elif timeout(t):
+            elif timeout(lifetime):
                 pass
         else:
             # wait forever, until we send s messages, or receive r messages
-            if await(len(listof(mesg, received(mesg))) == r):
+            if await(len(listof(mesg, received(mesg))) == recv_limit):
                 pass
-            elif len(listof(mesg, sent(mesg))) == s:
+            elif len(listof(mesg, sent(mesg))) == send_limit:
                 pass
         output("Terminating..")
 
@@ -74,45 +100,87 @@ class Server(process):
             return
         # get account num from the uid
         acc = uid[2]
-        outcome = 'processed'
+        outcome = const.PROCESSED
         send(('reply', (uid, outcome, bank[acc])), to=client)
+
+# TODO: COMBINE these 2 methods!
 
     def receive(msg=('withdrawal', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
         if not is_head and (p != predecessor):
             return
-        # get account num from the update id
-        acc = uid[2]
-        # withdrawal his $$$
-        if bank[acc] >= Decimal(amount):
-            bank[acc] -= Decimal(amount)
-            outcome = 'processed'
-        else:
-            outcome = 'InsufficientFunds'
+        this_msg = ('withdrawal', (uid, amount))
+
+        # check if this request is a duplicate or inconsisternt
+        reply = dup_or_incon(uid, this_msg)
+        if not reply:
+            # get account num from the update id
+            acc = uid[2]
+            # withdrawal his $$$
+            if bank[acc] >= Decimal(amount):
+                bank[acc] -= Decimal(amount)
+                outcome = const.PROCESSED
+            else:
+                outcome = const.INSUFFICIENT_FUNDS
+            reply = ('reply', (uid, outcome, bank[acc]))
+            # Save this update to our update history
+            add_to_updates(uid, this_msg, reply)
+
         # forward the update
-        fwd_update('withdrawal', uid, amount, bank[acc], outcome)
+        fwd_update(this_msg, reply, uid[0])
 
     def receive(msg=('deposit', (uid, amount)), from_=p):
         # If we are not the head server ignore client updates
         if not is_head and (p != predecessor):
             return
-        # get account num from the update id
-        acc = uid[2]
-        # Deposit his $$$
-        bank[acc] += Decimal(amount)
-        # forward the update
-        outcome = 'processed'
-        fwd_update('deposit', uid, amount, bank[acc], outcome)
+        this_msg = ('deposit', (uid, amount))
 
-    def fwd_update(update, uid, amount, new_balance, outcome):
+        # check if this request is a duplicate or inconsisternt
+        reply = dup_or_incon(uid, this_msg)
+        if not reply:
+            # get account num from the update id
+            acc = uid[2]
+            # Deposit his $$$
+            bank[acc] += Decimal(amount)
+            reply = ('reply', (uid, const.PROCESSED, bank[acc]))
+            # Save this update to our update history
+            add_to_updates(uid, this_msg, reply)
+
+        # forward the update
+        fwd_update(this_msg, reply, uid[0])
+
+    def fwd_update(orig_msg, reply, client):
         if is_tail:
             # Reply to the client
-            # TODO
-            # This is where we need to reply with
-            # Inconsistent or duplicate reply
-            output('Sending reply to client')
-            send(('reply', (uid, outcome, new_balance)), to=uid[0])
+            output('Sending client reply %s' % str(reply))
+            send(reply, to=client)
         else:
             # Forward the update to successor
-            output('FWD: send((%s, (%s, %s)), to=%s)' % (update, uid, amount, successor))
-            send((update, (uid, amount)), to=successor)
+            output('Forwarding update %s' % str(orig_msg))
+            send(orig_msg, to=successor)
+
+    def add_to_updates(uid, request, reply):
+        assert uid not in updates, 'Error: request id %s already exisits in updates' % str(uid)
+        updates[uid] = (request, reply)
+
+    def get_prev_reply(uid):
+        return updates[uid][1] if uid in updates else None
+
+    def get_prev_mesg(uid):
+        return updates[uid][0] if uid in updates else None
+
+    def dup_or_incon(uid, req_msg):
+        """
+        Check to see id this uid has been processed already. If the message
+        is the same then return the original reply otherwise a reply is
+        generated with outcome as INCONSISTENT and the current balance
+        """
+        if uid in updates:
+            # We have processed this uid already
+            if req_msg == get_prev_mesg(uid):
+                # DUPLICATE RESEND ORIGIN
+                return get_prev_reply(uid)
+            else:
+                # Inconsistent
+                return ('reply', (uid, const.INCONSISTENT, bank[uid[2]]))
+        return None
