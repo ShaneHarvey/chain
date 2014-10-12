@@ -6,7 +6,7 @@
           "ip": "localhost",
           "port": 50000,
           "start_delay": 0,
-          "lifetime": -1,
+          "lifetime": 3,
           "receive": -1,
           "send": -1
         },
@@ -14,7 +14,7 @@
           "ip": "localhost",
           "port": 50001,
           "start_delay": 0,
-          "lifetime": -1,
+          "lifetime": 4,
           "receive": -1,
           "send": -1
         },
@@ -22,7 +22,7 @@
           "ip": "localhost",
           "port": 50002,
           "start_delay": 0,
-          "lifetime": -1,
+          "lifetime": 5,
           "receive": -1,
           "send": -1
         }

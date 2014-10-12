@@ -1,7 +1,6 @@
 import random
 import logging
-import sys
-import time
+
 const = import_da('const')
 
 class Client(process):
@@ -30,32 +29,45 @@ class Client(process):
         else:
             assert False, 'Error: Invalid conf format: Client "requests" is not a list or dict'
 
-    def log_sent(message, dest):
-        num_sent += 1
-        output('Sending message #%s: %s to=%s' % \
-            (str(num_sent), str(message), str(dest)))
+    def main():
+        setup_logfile()
+        print_init_settings()
+        req = get_request()
+        while req:
+            prettyprint_request(req)
+            reply = send_request(req)
+            prettyprint_reply(reply)
+            req = get_request()
+        output("No more requests to send, terminating...")
 
-
-    def receive(msg=('reply', r), from_=tail):
-        replies.add((tail,r))
+    def receive(msg=('reply', (reqid, outcome, acc, bal)), from_=tail):
+        replies.add((reqid, outcome, acc, bal))
         # LOG
         num_received += 1
-        output('Received message #%s: %s from=%s' % \
-            (str(num_received), str(('reply', r)), str(tail)))
+        output('\tReceived message #%s: %s from=%s' % \
+            (str(num_received), str(('reply', (reqid, outcome, acc, bal))), str(tail)))
+
+    def send_request(request):
+        reqid = gen_reqid(request['account'])
+        if request['request'] == 'balance':
+            return send_query(request['request'], reqid, request['account'], request['bank'])
+        else:
+            return send_update(request['request'], reqid, request['account'], request['amount'], request['bank'])
 
     def send_query(query, reqid, account, bank):
         retry = 0
         for i in range(request_retries):
             tail = banks[bank]['tail']
             if not tail:
-                return 'unavailable'
+                return None
+
             message = (query, (reqid, account))
             # LOG
             log_sent(message, tail)
             send(message, to=tail)
-            if await(some((_, (r_reqid, outcome, r)) in replies, has=(r_reqid == reqid))):
+            if await(some((r_reqid, outcome, acc, bal) in replies, has=(r_reqid == reqid))):
                 replies = set()
-                return (outcome, r)
+                return (outcome, acc, bal)
             elif timeout(reply_timeout):
                 output('Request timed out after %s seconds' % reply_timeout)
                 retry += 1
@@ -70,15 +82,15 @@ class Client(process):
         for i in range(request_retries):
             head = banks[bank]['head']
             if not head:
-                return 'unavailable'
+                return None
 
             message = (update, (reqid, account, amount))
             # LOG
             log_sent(message, head)
             send(message, to=head)
-            if await(some((msg_type, (rreqid, outcome, r)) in replies, has=(rreqid == reqid))):
+            if await(some((rreqid, outcome, acc, bal) in replies, has=(rreqid == reqid))):
                 replies = set()
-                return (outcome, r)
+                return (outcome, acc, bal)
             elif timeout(reply_timeout):
                 output('Request timed out after %s seconds' % reply_timeout)
                 retry += 1
@@ -87,13 +99,6 @@ class Client(process):
                     return None
                 else:
                     output('Resending request')
-
-    def send_request(request):
-        reqid = gen_reqid(request['account'])
-        if request['request'] == 'balance':
-            return send_query(request['request'], reqid, request['account'], request['bank'])
-        else:
-            return send_update(request['request'], reqid, request['account'], request['amount'], request['bank'])
 
 #TODO: Should make reqid a string
     def gen_reqid(account):
@@ -131,12 +136,6 @@ class Client(process):
         request['amount'] = "%.2f" % random.uniform(0, 10001)
         return request
 
-    def valid_request(req):
-        # TODO: FINISH validiateing request object
-        if req['request'] not in valid_reqs:
-            return False
-        return True
-
     def setup_logfile():
         rootlog = logging.getLogger('')
         filelvl = logging.INFO
@@ -166,15 +165,36 @@ class Client(process):
             output('Will NOT re-send outstanding request to new head')
         output('*** Initial settings ***')
 
+    def log_sent(message, dest):
+        num_sent += 1
+        output('\tSending message #%s: %s to=%s' % \
+            (str(num_sent), str(message), str(dest)))
 
-    def main():
-        setup_logfile()
-        print_init_settings()
-        req = get_request()
-        while req:
-            #output("Sending request: %s" % req)
-            reply = send_request(req)
-            output('reply %s' % str(reply))
-            #time.sleep(1)
-            req = get_request()
-        output("Terminating..")
+    def prettyprint_request(req):
+        req_type = req['request']
+        account = req['account']
+        bank_n = req['bank']
+
+        if req_type == 'balance':
+            output('Sending request: %s, get balance of account %s' % (bank_n, account))
+        else:
+            amount = req['amount']
+            output('Sending request: %s, %s $%s account %s' % \
+                (bank_n, req_type ,amount, account))
+
+    def prettyprint_reply(reply):
+        if reply:
+            outcome, acc, bal = reply
+            if outcome == const.PROCESSED:
+                output('Reply: PROCESSED request, account %s, current balance $%s\n'\
+                        % (acc, bal))
+            elif outcome == const.INCONSISTENT:
+                output('Reply: INCONSISTENT WITH HISTORY, account %s, current balance $%s\n'\
+                        % (acc, bal))
+            elif outcome == const.INSUFFICIENT_FUNDS:
+                output('Reply: INSUFFICIENT FUNDS, account %s, current balance $%s\n'\
+                        % (acc, bal))
+            else:
+                output('Unkown outcome %s, account %s, balance $%s\n' % (outcome, acc, bal))
+        else:
+            output('Request could not be processed at this time.\n')
