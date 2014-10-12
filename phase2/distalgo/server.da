@@ -186,7 +186,7 @@ class Server(process):
             else:
                 # Inconsistent
                 output('\nINCONSISTENT WITH updates\n')
-                return ('reply', (uid, const.INCONSISTENT, bank[uid[2]]))
+                return ('reply', (uid, const.INCONSISTENT, bank[uid[1]]))
         return None
 
     def log_sent(message, dest):
