@@ -177,16 +177,23 @@ public class Server {
         for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].replace("#", "");
         }
+        if(parts[0].equals(B) && m == MessagesEnum.SOCKCHANNELREAD){
+            System.out.println("HACK");
+            return;
+        }
         String[] rid = parts[1].split("%");
         for (int i = 0; i < rid.length; i++) {
             rid[i] = rid[i].replace("%", "");
+            System.out.println(i + " , "+ rid[i]);
         }
         String msgrecv;
         if(parts[0].equals("balance")){
-            msgrecv = parts[0] + " request on account number " + rid[3]+ ". From client "+rid[0]+".";
+            System.out.println("rid " + rid[2]);
+            msgrecv = parts[0] + " request on account number " + rid[2]+ ". From client "+rid[0]+".";
         }
         else{
-            msgrecv = parts[0] + " request on account number " + rid[3] + " for the amount " + parts[2] +". From client "+rid[0]+".";
+            System.out.println("rid " + rid[2]);
+            msgrecv = parts[0] + " request on account number " + rid[2] + " for the amount " + parts[2] +". From client "+rid[0]+".";
         }
         
         MsgRecieved(m, msgrecv);
@@ -280,15 +287,15 @@ public class Server {
     private static Double withdrawal(String accountNum, Double amount) {
         Double currentBalance = (Double) bank.get(accountNum);
         if (currentBalance < 0.0 || currentBalance == null) {
-            writeToLog(new Date() + ": Insufficient Funds to withdraw $"+ amount+ " from account number "+ accountNum + ". Currecnt Balance: " + currentBalance);
+            writeToLog(new Date() + ": Insufficient Funds to withdraw $"+ amount+ " from account number "+ accountNum + ". Currecnt Balance: $" + currentBalance);
             return null;
         } else {
             Double postTrans = currentBalance - amount;
             if(postTrans <0.0){
-                writeToLog(new Date()+ ": Insufficient Funds to withdraw $"+ amount+ " from account number "+ accountNum + ". Currecnt Balance: " + currentBalance);
+                writeToLog(new Date()+ ": Insufficient Funds to withdraw $"+ amount+ " from account number "+ accountNum + ". Currecnt Balance: $" + currentBalance);
             }
             else{
-                writeToLog(new Date() + ": Processed withdrawal of $" + amount+ " from account number " + accountNum + ". Current balance: "+postTrans);
+                writeToLog(new Date() + ": Processed withdrawal of $" + amount+ " from account number " + accountNum + ". Current balance: $"+postTrans);
                 bank.put(accountNum, postTrans);
             }
             return postTrans;
@@ -454,7 +461,8 @@ public class Server {
                             channel.close();
                         }
                         String ret = new String(buf.array());
-                        //buf.clear();
+                        System.out.println(ret);
+                        buf.clear();
                         buf.flip();
                         parseRequest(ret, MessagesEnum.SOCKCHANNELREAD);
                         System.out.println("bytes read: " + bytesRead + " " + ret);
@@ -480,7 +488,7 @@ public class Server {
                         buf.clear();
                         ch.receive(buf);
                         String ret = new String(buf.array());
-                        //System.out.println("Data: " + ret);
+                        System.out.println("Data: " + ret);
                         parseRequest(ret, MessagesEnum.DATACHANNELREAD);
                         buf.flip();
                         if(myPosition != ServerStatus.TAIL || myPosition != ServerStatus.HEAD_TAIL){
@@ -536,12 +544,12 @@ public class Server {
         String withTest = "withdrawal#127.0.0.1:5000%Chase%1%1#50.00";
         String queryTest = "balance#127.0.0.1:5000%Chase1%1%1";
         String withTest2 = "withdrawal#127.0.0.1:5000%Chase%1%1#200.00";
-        parseRequest(depositTest, MessagesEnum.DATACHANNELREAD);
+        /*parseRequest(depositTest, MessagesEnum.DATACHANNELREAD);
         parseRequest(depositTest, MessagesEnum.SOCKCHANNELREAD);
         //parseRequest(withTest);
         parseRequest(queryTest,MessagesEnum.DATACHANNELREAD);
         parseRequest(queryTest, MessagesEnum.SOCKCHANNELREAD);
-
+        */
         //parseRequest(depositTest);
         //parseRequest(withTest2);
         System.out.println("Success2");
