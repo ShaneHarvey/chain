@@ -113,7 +113,7 @@ class Client(process):
         NOTE: account is used because clients can used the same
               sequence number for different accounts.
         """
-        if not seq_num:
+        if seq_num is None:
             seq_num = seq
             seq += 1
         return (self.id, account, seq_num)
