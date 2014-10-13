@@ -1,5 +1,5 @@
 ##DEPENDENCIES:
-	Java 8
+Tested with Java 7 & 8
 
 ##INSTRUCTIONS:
 ####If make is available on your system
@@ -7,7 +7,7 @@ Simply cd into the `src/` directory
 and type `make`
 ```bash
 $ cd src
-$ make all
+$ make
 ```
 To run a specific configuration file:
 This command runs the chain replication with configuration file ../config/basic.json
