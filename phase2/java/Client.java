@@ -142,6 +142,19 @@ public class Client {
         String bn = innerparts[1].replace("%", "");
         return bn;
     }
+    private static String getAccount(String request){
+        String [] parts = request.split("#");
+        String [] innerparts = parts[1].split("%");
+        String accountNum = innerparts[2].replace("%", "");
+        System.out.println(accountNum);
+        return accountNum;
+    }
+    private static String getAmount(String request){
+        String [] parts = request.split("#");
+        String amt = parts[2];
+        amt = amt.replace("#", "");
+        return amt;
+    }
     private static RequestType getRequestDest(String request){
         String [] parts = request.split("#");
         String req = parts[0];
@@ -155,21 +168,26 @@ public class Client {
         }
         return ret;
     }
+    private static String getRequestType(String request){
+        String [] parts = request.split("#");
+        String req = parts[0];
+        req = req.replace("#", "");
+        return req;
+    }
     private static void sendRequests() throws IOException{
        
         DatagramChannel channel = DatagramChannel.open();
         channel.socket().bind(new InetSocketAddress(myPort));
         for(int i = 0; i < requests.length ; i ++ ){
-            ByteBuffer buf = ByteBuffer.allocate(MAXBUFFER);
-            buf.clear();
-            buf.put(requests[i].getBytes());
-            buf.flip();
+            ByteBuffer sendbuf = ByteBuffer.allocate(MAXBUFFER);
+            sendbuf.clear();
+            sendbuf.put(requests[i].getBytes());
+            sendbuf.flip();
             RequestType r = getRequestDest(requests[i]);
             String bank = getBank(requests[i]);
             BankInfo b = bankMap.get(bank);
             String host ="";
-            int port =0;
-            
+            int port=0;
             if(r == RequestType.HEAD){
                 host = b.headIP;
                 port = b.headPort;
@@ -178,8 +196,47 @@ public class Client {
                 host = b.tailIP;
                 port = b.tailPort;
             }
-            System.out.println(port);
-            int bytesSent = channel.send(buf, new InetSocketAddress(host, port));
+            int bytesSent = channel.send(sendbuf, new InetSocketAddress(host, port));
+            /*String rtype = getRequestType(requests[i]);
+            String accountNum = getAccount(requests[i]);
+            String amt = getAmount(requests[i]);*/
+            if(r == RequestType.HEAD){
+                writeToLog(getRequestType(requests[i])+ " request for the amount of $"
+                        +getAmount(requests[i])+" on account number "+ getAccount(requests[i]) 
+                        +" sent to head of "+bank+" at host "+ host + " and port "+ port +".");
+            }
+            else{
+                writeToLog(getRequestType(requests[i])+ " request on account number "
+                        + getAccount(requests[i]) 
+                        +" sent to tail of "+bank+" at host "+ host + " and port "+ port +".");
+            }
+            System.out.println(requests[i]);
+            ByteBuffer recvBuffer = ByteBuffer.allocate(MAXBUFFER);
+            recvBuffer.clear();
+            channel.receive(recvBuffer);
+            String ret = new String(recvBuffer.array());
+            parseResponse(ret, getRequestType(requests[i]));
+            
+            System.out.println(ret);
+        }
+    }
+    public static void parseResponse(String response, String reqType){
+        String [] parts = response.split("#");
+        for(int i = 0; i < parts.length; i++){
+            parts[i] = parts[i].replace("#", "");
+        }
+        int outcome = Integer.parseInt(parts[2]);
+        if(outcome == 0){
+            writeToLog("Reply from client from server: Processed " + reqType 
+                    + " request. The current balance is $" + parts[3]);
+        }
+        else if(outcome == 1){
+            writeToLog("Reply to client from server: Dupicate "+ reqType 
+                    +" request that is inconsistent with history present at server. The current balance is $" + parts[3]);
+        }
+        else{
+           writeToLog("Reply from client from server: Insufficient funds on " + 
+                   reqType + "request. The current balance is $" + parts[3]); 
         }
     }
     public static void main (String [] args) throws IOException{

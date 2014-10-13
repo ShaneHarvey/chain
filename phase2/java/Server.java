@@ -41,6 +41,14 @@ class ReqObject{
        
     }
 }
+class WithdrawalResponse{
+    Double balance;
+    boolean flag = false;
+    public WithdrawalResponse(Double b, boolean f){
+        balance = b;
+        flag = f;
+    }
+}
 public class Server {
 
     enum ServerEnum {
@@ -62,6 +70,7 @@ public class Server {
         ACCEPT, SOCKCHANNELREAD, DATACHANNELREAD, REPLYTOCLI, FWDTOSUCCESSOR
     }
     //enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
+    public static final int MAXBUFFER = 1000;
     public static final String W = "withdrawal";
     public static final String D = "deposit";
     public static final String B = "balance";
@@ -80,6 +89,7 @@ public class Server {
     private static SocketChannel predecessorSock;
     private static SocketChannel successorSock;
     private static ServerSocketChannel mySock;
+    private static DatagramChannel datagramChannel;
     public static String pound = "\n\n############################################################\n\n";
     public static HashMap<String, ReqObject> history;
     private static int start_delay;
@@ -125,6 +135,7 @@ public class Server {
             System.out.println("Error in Server position definition");
             System.exit(0);
         }
+        System.out.println(myPosition.toString());
     }
 
     /**
@@ -172,11 +183,13 @@ public class Server {
      * balance#clientIPPORT%bank_name%accountnum%seq
      */
     private static void parseRequest(String req, MessagesEnum m) {
-        String response;
+        System.out.println(req);
+        String response = "reply#";
         String[] parts = req.split("#");
         for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].replace("#", "");
         }
+        response += parts[1] + "#";
         if(parts[0].equals(B) && m == MessagesEnum.SOCKCHANNELREAD){
             System.out.println("HACK");
             return;
@@ -204,27 +217,45 @@ public class Server {
                 System.out.println("Request Found in history.");
                 if (check.req.equals(parts[0]) && check.req.equals(B)) {
                     String logMsg = new Date() + ": Duplicate Request. Sending processed Reply";
+                    response += "0#"+check.balance;
                     System.out.println(logMsg);
                     writeToLog(logMsg);
                     //return;
                 } else if (check.req.equals(parts[0]) && check.amount.equals((Double) Double.parseDouble(parts[2]))) {
                     String logMsg = new Date() + ": Duplicate Request. Sending processed Reply";
+                    response += "0#"+check.balance;
                     System.out.println(logMsg);
                     writeToLog(logMsg);
                     //return;
                 } else {
                     //INCONSISTENT with history
                     String logMsg = new Date() + ": Duplicate Request. Request is Inconsistent with history. Aborting request.";
+                    response += "1#"+ bank.get(check.accountNum);
                     System.out.println(logMsg);
                     writeToLog(logMsg);
                     
                 }
                 if(myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
                     MsgSent(MessagesEnum.REPLYTOCLI, msgrecv);
+                    ByteBuffer sendBuf = ByteBuffer.allocate(MAXBUFFER);
+                    sendBuf.clear();
+                    sendBuf.put(response.getBytes());
+                    sendBuf.flip();
+                    String [] host_port = rid[0].split(":");
+                    host_port[0] = host_port[0].replaceAll(":", "");
+                    host_port[1] = host_port[1].replaceAll(":", "");
+                    int c_port = Integer.parseInt(host_port[1]);
+                    try {
+                        int byteSent = datagramChannel.send(sendBuf, new InetSocketAddress(host_port[0],c_port));
+                    } catch (IOException ex) {
+                        System.out.println("FAILED to send response to client.");
+                        Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                    }
                 }
                 else{
                     MsgSent(MessagesEnum.FWDTOSUCCESSOR, msgrecv);
                 }
+                System.out.println(response);
                 return;
             }
             
@@ -239,7 +270,8 @@ public class Server {
         String account_num= null;
         int seq_num;
         Double amount = 0.0;
-        if (parts.length == 3) {
+        if (parts.length == 3 && parts[2] != null) {
+            System.out.println(parts[2]);
             amount = Double.parseDouble(parts[2]);
         }
 
@@ -253,22 +285,49 @@ public class Server {
         if (account_num != null) {
             if (parts[0].equals(B)) {
                 ret = getBalance(account_num);
+                response += "0#"+ret;
             } else if (parts[0].equals(D)) {
                 ret = deposit(account_num, amount);
+                response += "0#"+ret;
             } else if (parts[0].equals(W)) {
-                ret = withdrawal(account_num, amount);
+                WithdrawalResponse r = withdrawal(account_num, amount);
+                System.out.println("Withdrawal " + r.balance + " " + r.flag); 
+                ret = r.balance;
+                if(r.flag == true){
+                    response += "0#"+ret;
+                }
+                else{
+                    response += "2#"+ret;
+                }
             } else {
 
             }
         }
-        ReqObject insert = new ReqObject(parts[1], account_num, parts[0], amount, ReqObject.Outcome.Processed, ret, "");
+        ReqObject insert = new ReqObject(parts[1], account_num, parts[0], amount, ReqObject.Outcome.Processed, ret, response);
         history.put(parts[1], insert);
         if(myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
             MsgSent(MessagesEnum.REPLYTOCLI, msgrecv);
+            ByteBuffer sendBuf = ByteBuffer.allocate(MAXBUFFER);
+            sendBuf.clear();
+            sendBuf.put(response.getBytes());
+            sendBuf.flip();
+            String [] host_port = rid[0].split(":");
+            host_port[0] = host_port[0].replaceAll(":", "");
+            host_port[1] = host_port[1].replaceAll(":", "");
+            int c_port = Integer.parseInt(host_port[1]);
+            try {
+                int byteSent = datagramChannel.send(sendBuf, new InetSocketAddress(host_port[0],c_port));
+            } catch (IOException ex) {
+                System.out.println("FAILED to send response to client.");
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
         }
         else{
             MsgSent(MessagesEnum.FWDTOSUCCESSOR, msgrecv);
+            
         }
+        System.out.println(response);
         // TODO HANDLE ACKING LATER
     }
 
@@ -284,22 +343,38 @@ public class Server {
         }
     }
 
-    private static Double withdrawal(String accountNum, Double amount) {
+    private static WithdrawalResponse withdrawal(String accountNum, Double amount) {
         Double currentBalance = (Double) bank.get(accountNum);
-        if (currentBalance < 0.0 || currentBalance == null) {
+        boolean valid = true;
+        Double ret;
+        if(currentBalance == null){
+            bank.put(accountNum, 0.0);
+            writeToLog(new Date() + ": Account not present in the bank. New account created with account numebr " + accountNum + ". Currecnt Balance is $0.00");
+            ret = 0.0;
+            valid = false;
+        }
+        else if (currentBalance <=0.0) {
+            ret = currentBalance;
             writeToLog(new Date() + ": Insufficient Funds to withdraw $"+ amount+ " from account number "+ accountNum + ". Currecnt Balance: $" + currentBalance);
-            return null;
-        } else {
+            valid = false;
+            //return null;
+        } 
+        else {
             Double postTrans = currentBalance - amount;
             if(postTrans <0.0){
                 writeToLog(new Date()+ ": Insufficient Funds to withdraw $"+ amount+ " from account number "+ accountNum + ". Currecnt Balance: $" + currentBalance);
+                ret = currentBalance;
+                valid = false;
             }
             else{
                 writeToLog(new Date() + ": Processed withdrawal of $" + amount+ " from account number " + accountNum + ". Current balance: $"+postTrans);
                 bank.put(accountNum, postTrans);
+                ret = postTrans;
+                valid = true;
             }
-            return postTrans;
         }
+        WithdrawalResponse resp = new WithdrawalResponse(ret, valid);
+        return resp;
     }
 
     private static Double deposit(String accountNum, Double amount) {
@@ -388,7 +463,8 @@ public class Server {
         
         //If the server is a HEAD or Tail server start the Datagram channel for the clients to talk on
         if(myPosition == ServerStatus.HEAD || myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
-            DatagramChannel datagramChannel = DatagramChannel.open();
+            System.out.println("Setup Datagram socket.");
+            datagramChannel = DatagramChannel.open();
             datagramChannel.configureBlocking(false);
             datagramChannel.socket().bind(new InetSocketAddress(myPort));
             datagramChannel.register(selector, SelectionKey.OP_READ);
@@ -454,20 +530,22 @@ public class Server {
                     }
                     if (channel != null) {
                         System.out.println("In SocketChannel");
-                        ByteBuffer buf = ByteBuffer.allocate(100);
+                        ByteBuffer buf = ByteBuffer.allocate(MAXBUFFER);
+                        buf.clear();
                         int bytesRead = channel.read(buf);
                         if (bytesRead == -1) {
                             System.out.println("ConnectionClosed");
                             channel.close();
                         }
                         String ret = new String(buf.array());
-                        System.out.println(ret);
+                        //System.out.println(ret);
                         buf.clear();
                         buf.flip();
+                        buf.clear();
                         parseRequest(ret, MessagesEnum.SOCKCHANNELREAD);
                         System.out.println("bytes read: " + bytesRead + " " + ret);
                         if (myPosition == ServerStatus.HEAD || myPosition == ServerStatus.MIDDLE) {
-                            //System.out.println(sServerPort);
+                            System.out.println(sServerPort);
                             if (successorSock == null) {
                                 successorSock = SocketChannel.open();
                                 successorSock.connect(new InetSocketAddress("localhost", sServerPort));
@@ -491,8 +569,9 @@ public class Server {
                         System.out.println("Data: " + ret);
                         parseRequest(ret, MessagesEnum.DATACHANNELREAD);
                         buf.flip();
-                        if(myPosition != ServerStatus.TAIL || myPosition != ServerStatus.HEAD_TAIL){
-                            //System.out.println(sServerPort);
+
+                        if(myPosition != ServerStatus.TAIL && myPosition != ServerStatus.HEAD_TAIL){
+                            System.out.println("Inside the resending to successor " +sServerPort);
                             if(successorSock == null){
                                 successorSock = SocketChannel.open();
                                 successorSock.connect(new InetSocketAddress("localhost",sServerPort ));
@@ -544,9 +623,9 @@ public class Server {
         String withTest = "withdrawal#127.0.0.1:5000%Chase%1%1#50.00";
         String queryTest = "balance#127.0.0.1:5000%Chase1%1%1";
         String withTest2 = "withdrawal#127.0.0.1:5000%Chase%1%1#200.00";
-        /*parseRequest(depositTest, MessagesEnum.DATACHANNELREAD);
-        parseRequest(depositTest, MessagesEnum.SOCKCHANNELREAD);
-        //parseRequest(withTest);
+        //parseRequest(depositTest, MessagesEnum.DATACHANNELREAD);
+        //parseRequest(depositTest2, MessagesEnum.DATACHANNELREAD);
+        /*//parseRequest(withTest);
         parseRequest(queryTest,MessagesEnum.DATACHANNELREAD);
         parseRequest(queryTest, MessagesEnum.SOCKCHANNELREAD);
         */
