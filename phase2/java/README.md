@@ -10,11 +10,11 @@ $ cd src
 $ make
 ```
 To run a specific configuration file:
-This command runs the chain replication with configuration file ../config/basic.json
+This command runs the chain replication with configuration file `../config/basic.json`
 ```bash
 $ make test-basic.json
 ```
-Similarily, this command runs with file ../config/duplicate.json
+Similarily, this command runs with file `../config/duplicate.json`
 ```bash
 $ make test-duplicate.json
 ```
@@ -22,12 +22,12 @@ $ make test-duplicate.json
 ####If make is not available:
 
 Step1 : Make sure java is installed on the computer
-Step2 : go into the src/ directory
-Step3 : type in the following command. It will compile the Client and Server source code
+Step2 : go into the `src/` directory
+Step3 : type in the following command. It will compile the `Client` and `Server` source code
 ```bash
 $ javac Client.java Server.java
 ```
-Step4: type in the following command. It will compile the ExecSimulation source code. Keep in mind that you must include the class path to the json jar.
+Step4: type in the following command. It will compile the `ExecSimulation` source code. Keep in mind that you must include the class path to the json jar.
 ```bash
 $ javac -cp ./json-simple-1.1.1.jar:. ExecSimulation.java
 ```
@@ -38,12 +38,9 @@ $ java -cp ./json-simple-1.1.1.jar:. ExecSimulation ../config/test1.json
 
 
 ##MAIN FILES:
- 	Path to Server file:
- 		./src/Server.java
- 	Path to Client file:
- 		./src/Client.java
- 	Path to ExecSimulation file:
- 		./src/ExecSimulation.java
+Path to Server file: `./src/Server.java`  
+Path to Client file: `./src/Client.java`  
+Path to ExecSimulation file: `./src/ExecSimulation.java`
 
 
 ##Log Files:
