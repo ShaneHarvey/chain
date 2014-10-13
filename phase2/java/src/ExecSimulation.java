@@ -31,7 +31,7 @@ class BankInfo2{
     ArrayList<ServerInfo> servers;
     public BankInfo2(String bn){
         bank_name = bn;
-        servers = new ArrayList();
+        servers = new ArrayList<ServerInfo>();
     }
 }
 class ServerInfoForClient{
@@ -105,7 +105,7 @@ class ClientInfo{
         reply_timeout = t;
         request_retries = rr;
         resend_head = h;
-        requests = new ArrayList();
+        requests = new ArrayList<RequestInfo>();
     }
     public ClientInfo(String t, String rr, String h, String s, String n, String b, String d, String w, String tr){
         reply_timeout = t;
@@ -127,14 +127,14 @@ public class ExecSimulation {
      */
     public static void main (String [] args) throws InterruptedException, FileNotFoundException, IOException, ParseException {
             FileReader reader = null;
-                ArrayList BankArray = new ArrayList();
+                ArrayList<BankInfo2> BankArray = new ArrayList<BankInfo2>();
                 reader = new FileReader(args[0]);
                 JSONParser jp = new JSONParser();
                 JSONObject doc = (JSONObject) jp.parse(reader);
                 JSONObject banks =(JSONObject) doc.get("banks");
-                Set bankKeys=(Set) banks.keySet();
-                Object [] bankNames = (Object[])bankKeys.toArray();
-                
+                //Set bankKeys = banks.keySet();
+                //Object [] bankNames = bankKeys.toArray();
+                Object [] bankNames = banks.keySet().toArray();
                 for(int i = 0; i< bankNames.length; i++){
                     
                     System.out.println(bankNames[i]);
@@ -167,8 +167,8 @@ public class ExecSimulation {
                 for(int i = 0; i < clients.size(); i++){
                     JSONObject client_i = (JSONObject) clients.get(i);
                     //This is for hard coded requests in the json file
-                    System.out.println(client_i);
-                    System.out.println(client_i.getClass());
+                    //System.out.println(client_i);
+                    //System.out.println(client_i.getClass());
                     String typeOfClient = client_i.get("requests").getClass().toString();
                     
                     //This is for a client that has hardCoded requests
@@ -176,7 +176,7 @@ public class ExecSimulation {
                         //System.out.println("JSONArray");
                         JSONArray requests = (JSONArray) client_i.get("requests");
                         ClientInfo c = new ClientInfo(client_i.get("reply_timeout").toString(), client_i.get("request_retries").toString(), client_i.get("resend_head").toString());
-                        ArrayList<RequestInfo> req_list = new ArrayList();
+                        ArrayList<RequestInfo> req_list = new ArrayList<RequestInfo>();
                         for (int j = 0; j < requests.size(); j++) {
                             JSONObject request_j = (JSONObject) requests.get(j);
                             String req = request_j.get("request").toString();
@@ -219,21 +219,21 @@ public class ExecSimulation {
                         clientsList.add(c);
                     }
                 }    
-                System.out.println(clients.size());
+                //System.out.println(clients.size());
                 double lowerPercent = 0.0;
                 double upperPercent = 1.0;
                 double result;
                 ArrayList<ServerInfoForClient> servInfoCli = new ArrayList<ServerInfoForClient>();
                 for(int i = 0 ; i < BankArray.size(); i++){
-                    BankInfo2 analyze = (BankInfo2)BankArray.get(i);
-                    System.out.println(analyze.bank_name);
+                    BankInfo2 analyze = BankArray.get(i);
+                    //System.out.println(analyze.bank_name);
                     //One server in the chain
                     String execCmd = "java Server ";
                     String hIP = "", hPort = "", tIP="", tPort="", bn="";
                     bn = analyze.bank_name;
                     
                     if(analyze.servers.size()== 1){
-                        ServerInfo si = (ServerInfo)analyze.servers.get(0);
+                        ServerInfo si = analyze.servers.get(0);
                         execCmd += "HEAD_TAIL " +si.IP + ":" + si.Port;
                         execCmd += " localhost:0 localhost:0 localhost:0 "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send;
                         hIP = si.IP;
@@ -244,10 +244,10 @@ public class ExecSimulation {
                     else{
                         for(int j = 0; j < analyze.servers.size(); j++){
                             execCmd = "java Server ";
-                            ServerInfo si = (ServerInfo)analyze.servers.get(j);
+                            ServerInfo si = analyze.servers.get(j);
                             //Head server
                             if(j == 0){
-                                ServerInfo siSucc = (ServerInfo) analyze.servers.get(j+1);
+                                ServerInfo siSucc = analyze.servers.get(j+1);
                                 execCmd += "HEAD " + si.IP + ":" +si.Port+ " ";
                                 execCmd += "localhost:0 " + siSucc.IP +":" +siSucc.Port + " localhost:0";
                                 execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send + " " + analyze.bank_name;
@@ -258,7 +258,7 @@ public class ExecSimulation {
                             }
                             //Tail Server
                             else if(j == (analyze.servers.size() - 1) ){
-                                ServerInfo siPred = (ServerInfo) analyze.servers.get(j-1);
+                                ServerInfo siPred =  analyze.servers.get(j-1);
                                 execCmd += "TAIL " + si.IP + ":" +si.Port+ " ";
                                 execCmd +=  siPred.IP +":" +siPred.Port + " localhost:0 localhost:0";
                                 execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send+ " " + analyze.bank_name;
@@ -268,8 +268,8 @@ public class ExecSimulation {
                             }
                             //Middle Server
                             else{
-                                ServerInfo siSucc = (ServerInfo) analyze.servers.get(j+1);
-                                ServerInfo siPred = (ServerInfo) analyze.servers.get(j-1);
+                                ServerInfo siSucc =  analyze.servers.get(j+1);
+                                ServerInfo siPred =  analyze.servers.get(j-1);
                                 execCmd += "MIDDLE " + si.IP + ":" +si.Port+ " ";
                                 execCmd +=  siPred.IP +":" +siPred.Port +" " +siSucc.IP+":"+ siSucc.Port +" localhost:0";
                                 execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send + " " + analyze.bank_name;
@@ -289,13 +289,13 @@ public class ExecSimulation {
                     banksCliParam += add;
                 }
                 banksCliParam = banksCliParam.replaceFirst("@", "");
-                System.out.println(banksCliParam);
+                //System.out.println(banksCliParam);
                 for(int i  = 0 ; i < clientsList.size(); i++){
-                    ClientInfo analyze = (ClientInfo) clientsList.get(i);
+                    ClientInfo analyze = clientsList.get(i);
                     String requestsString= "";
                     if(analyze.isRandom){
                         double balance = Double.parseDouble(analyze.prob_balance);
-                        System.out.println(analyze.prob_balance);
+                        //System.out.println(analyze.prob_balance);
                         double deposit = Double.parseDouble(analyze.prob_deposit);
                         double withdraw = Double.parseDouble(analyze.prob_withdraw);
                         int numRequests = Integer.parseInt(analyze.num_requests);
@@ -321,7 +321,7 @@ public class ExecSimulation {
                         for(int j = 0; j < analyze.requests.size(); j++){
                             
                             RequestInfo req = analyze.requests.get(j);
-                            System.out.println("Sequence ###" + req.sequenceNum);
+                            //System.out.println("Sequence ###" + req.sequenceNum);
                             if(req.request.equals("balance")){
                                 requestsString += "@"+req.request + "#localhost:" + analyze.PortNumber + "%" + req.bankName + "%" + req.accountNum + "%" + req.sequenceNum;
                             }
@@ -344,14 +344,14 @@ public class ExecSimulation {
                                 + " " + analyze.request_retries + " " + analyze.resend_head;
                      
                     }
-                    System.out.println(execCommand);
+                    System.out.println("Client " + (i+1) + " started" );
                     Process serv1 = Runtime.getRuntime().exec(execCommand);
                     //System.out.println(requestsString);
                 }
                 
                 
                 
-                System.out.println("asdf");
+                //System.out.println("asdf");
         }
         
 }
