@@ -59,7 +59,7 @@
           "request": "balance",
           "bank": "Chase",
           "account": "0001",
-          "seq_num": 1
+          "seq_num": 3
         }
       ]
     }
