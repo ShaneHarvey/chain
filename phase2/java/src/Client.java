@@ -110,7 +110,7 @@ public class Client {
     }
     private static void createFile() {
         try {
-            String fname = "./Client_" +myPort + ".log";
+            String fname = "../logs/Client_" +myPort + ".log";
             logFile = new File(fname);
             if (!logFile.exists()) {
                 logFile.createNewFile();
@@ -203,24 +203,24 @@ public class Client {
             if(r == RequestType.HEAD){
                 writeToLog(getRequestType(requests[i])+ " request for the amount of $"
                         +getAmount(requests[i])+" on account number "+ getAccount(requests[i]) 
-                        +" sent to head of "+bank+" at host "+ host + " and port "+ port +".");
+                        +" sent to head of "+bank+" at host "+ host + " and port "+ port +". Request number " + i );
             }
             else{
                 writeToLog(getRequestType(requests[i])+ " request on account number "
                         + getAccount(requests[i]) 
-                        +" sent to tail of "+bank+" at host "+ host + " and port "+ port +".");
+                        +" sent to tail of "+bank+" at host "+ host + " and port "+ port +". Request number " + i);
             }
             System.out.println(requests[i]);
             ByteBuffer recvBuffer = ByteBuffer.allocate(MAXBUFFER);
             recvBuffer.clear();
             channel.receive(recvBuffer);
             String ret = new String(recvBuffer.array());
-            parseResponse(ret, getRequestType(requests[i]));
+            parseResponse(ret, getRequestType(requests[i]),i);
             
             System.out.println(ret);
         }
     }
-    public static void parseResponse(String response, String reqType){
+    public static void parseResponse(String response, String reqType, int requestNumber){
         String [] parts = response.split("#");
         for(int i = 0; i < parts.length; i++){
             parts[i] = parts[i].replace("#", "");
@@ -228,15 +228,17 @@ public class Client {
         int outcome = Integer.parseInt(parts[2]);
         if(outcome == 0){
             writeToLog("Reply from client from server: Processed " + reqType 
-                    + " request. The current balance is $" + parts[3]);
+                    + " request. The current balance is $" + parts[3]+". Response to request number " + requestNumber);
         }
         else if(outcome == 1){
             writeToLog("Reply to client from server: Dupicate "+ reqType 
-                    +" request that is inconsistent with history present at server. The current balance is $" + parts[3]);
+                    +" request that is inconsistent with history present at server. The current balance is $" + parts[3]
+                    +". Response to request number " + requestNumber);
         }
         else{
            writeToLog("Reply from client from server: Insufficient funds on " + 
-                   reqType + "request. The current balance is $" + parts[3]); 
+                   reqType + "request. The current balance is $" + parts[3]
+                   +". Response to request number " + requestNumber); 
         }
     }
     public static void main (String [] args) throws IOException{

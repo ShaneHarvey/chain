@@ -96,6 +96,7 @@ public class Server {
     private static int lifetime;
     private static int receive;
     private static int send;
+    private static String bankName;
     
     private static int messagesS = 0;
     private static int messagesR = 0;
@@ -113,8 +114,10 @@ public class Server {
      * arg[6] will contain lifetime
      * arg[7] will contain receive
      * arg[8] will contain  send
+     * arg[9] will contain the bank name
      */
     private static void parseArgs(String[] arg) {
+        bankName = arg[9];
         recordIPAndPort(arg[1], ServerEnum.ME);
         recordIPAndPort(arg[2], ServerEnum.PREDECESSOR);
         recordIPAndPort(arg[3], ServerEnum.SUCCESSOR);
@@ -397,7 +400,8 @@ public class Server {
 
     private static void createFile() {
         try {
-            String fname = "./Server_" +myPort + ".log";
+            //String fname = "./Server_" +myPort + ".log";
+            String fname="../logs/"+bankName+"_Server_" +myPort + ".log";
             logFile = new File(fname);
             if (!logFile.exists()) {
                 logFile.createNewFile();

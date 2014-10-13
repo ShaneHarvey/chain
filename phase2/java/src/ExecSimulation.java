@@ -250,7 +250,7 @@ public class ExecSimulation {
                                 ServerInfo siSucc = (ServerInfo) analyze.servers.get(j+1);
                                 execCmd += "HEAD " + si.IP + ":" +si.Port+ " ";
                                 execCmd += "localhost:0 " + siSucc.IP +":" +siSucc.Port + " localhost:0";
-                                execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send;
+                                execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send + " " + analyze.bank_name;
                                 System.out.println(execCmd);
                                 hIP = si.IP;
                                 hPort = si.Port;
@@ -261,7 +261,7 @@ public class ExecSimulation {
                                 ServerInfo siPred = (ServerInfo) analyze.servers.get(j-1);
                                 execCmd += "TAIL " + si.IP + ":" +si.Port+ " ";
                                 execCmd +=  siPred.IP +":" +siPred.Port + " localhost:0 localhost:0";
-                                execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send;
+                                execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send+ " " + analyze.bank_name;
                                 tIP = si.IP;
                                 tPort = si.Port;
                                 System.out.println(execCmd);
@@ -272,7 +272,7 @@ public class ExecSimulation {
                                 ServerInfo siPred = (ServerInfo) analyze.servers.get(j-1);
                                 execCmd += "MIDDLE " + si.IP + ":" +si.Port+ " ";
                                 execCmd +=  siPred.IP +":" +siPred.Port +" " +siSucc.IP+":"+ siSucc.Port +" localhost:0";
-                                execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send;
+                                execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send + " " + analyze.bank_name;
                                 System.out.println(execCmd);
                             }
                             Thread.sleep(500);
