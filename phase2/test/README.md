@@ -3,35 +3,35 @@ This is the documentation for each test file. It describes the objective
 of each configuration test file.
 
 
-#basic.json
+###basic.json
     Objective: Tests basic bank functionality
     One server and one client are started.
     The client issues a deposit, balance, withdrawal, and balance requests
     on a single account.
 
-#chain.json
+###chain.json
     Objective: Test server chain functionality
     One bank with a chain of 3 servers and one client are started.
     The client issues a deposit, balance, withdrawal, and balance requests
     on a single account. (Same as the basic.json test)
 
-#random_client.json
+###random_client.json
     Objective: Test that client can generate random requests
     One bank with a chain of 3 servers and one client are started.
     The client issues 5 random requests.
 
-#clients.json
+###clients.json
     Objective: Test that multiple clients can be instantiated
     One bank with a chain of 2 servers and 3 clients are started.
     2 clients issue random requests, the other issues the same request
     sequence the basic.json client
 
-#banks.json
+###banks.json
     Objective: Test that clients can interact with multiple bank chains
     3 banks with chains of varying and 5 clients are started.
     All 5 clients issue random requests.
 
-#insufficient.json
+###insufficient.json
     Objective: Test that insufficient funds works correctly
     One bank with a chain of 3 servers and one client are started.
     The client issues a deposit on $1337.00 into account '0001'. Next,
@@ -39,7 +39,7 @@ of each configuration test file.
     should be illegal. The client should receive an insufficient funds reply.
     Lastly, the client issues a balance request on the same account.
 
-#duplicate.json
+###duplicate.json
     Objective: Test that duplicate request identification works correctly
     One bank with a chain of 3 servers and one client are started.
     First, the client issues a deposit on $111.00 into account '0001'.
@@ -50,7 +50,7 @@ of each configuration test file.
     Finally, the client issues a balance request on the same account to verify
     that the balance is actually $333.00.
 
-#inconsistent.json
+###inconsistent.json
     Objective: Test that inconsistent request identification works correctly
     One bank with a chain of 3 servers and one client are started.
     First, the client issues a deposit on $111.00 into account '0001'.
@@ -65,7 +65,7 @@ of each configuration test file.
     that the balance is actually $333.00.
 
 
-#test1.json and test2.json
+###test1.json and test2.json
     Used for developement testing
 
 ##Format Guide for JSON Files (if needed)
