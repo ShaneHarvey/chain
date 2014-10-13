@@ -209,7 +209,7 @@ public class Server {
         }
         else{
             System.out.println("rid " + rid[2]);
-            msgrecv = parts[0] + " request on account number " + rid[2] + " for the amount " + parts[2] +". From client "+rid[0]+".";
+            msgrecv = parts[0] + " request on account number " + rid[2] + " for the amount " + Double.parseDouble(parts[2]) +". From client "+rid[0]+".";
         }
         
         MsgRecieved(m, msgrecv);

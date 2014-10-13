@@ -226,18 +226,19 @@ public class Client {
             parts[i] = parts[i].replace("#", "");
         }
         int outcome = Integer.parseInt(parts[2]);
+        Double bal = Double.parseDouble(parts[3]);
         if(outcome == 0){
             writeToLog("Reply from client from server: Processed " + reqType 
-                    + " request. The current balance is $" + parts[3]+". Response to request number " + requestNumber);
+                    + " request. The current balance is $" + bal +". Response to request number " + requestNumber);
         }
         else if(outcome == 1){
             writeToLog("Reply to client from server: Dupicate "+ reqType 
-                    +" request that is inconsistent with history present at server. The current balance is $" + parts[3]
+                    +" request that is inconsistent with history present at server. The current balance is $" + bal
                     +". Response to request number " + requestNumber);
         }
         else{
            writeToLog("Reply from client from server: Insufficient funds on " + 
-                   reqType + "request. The current balance is $" + parts[3]
+                   reqType + "request. The current balance is $" + bal
                    +". Response to request number " + requestNumber); 
         }
     }
