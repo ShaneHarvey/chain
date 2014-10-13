@@ -1,3 +1,5 @@
+DEPENDENCIES:
+	Make sure the current computer you will test this code on has Java 8 installed on it. 
 INSTRUCTIONS:
 	Step1 : Make sure java is installed on the computer
 	Step2 : go into the src/ directory 

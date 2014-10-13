@@ -234,7 +234,7 @@ public class ExecSimulation {
                     
                     if(analyze.servers.size()== 1){
                         ServerInfo si = (ServerInfo)analyze.servers.get(0);
-                        execCmd += "HEAD " +si.IP + ":" + si.Port;
+                        execCmd += "HEAD_TAIL " +si.IP + ":" + si.Port;
                         execCmd += " localhost:0 localhost:0 localhost:0 "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send;
                         hIP = si.IP;
                         hPort = si.Port;
