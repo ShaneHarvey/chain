@@ -1,2 +1,2 @@
 PROCESSED, INCONSISTENT, INSUFFICIENT_FUNDS = range(3)
-LOG_DIR = 'logs'
+LOG_DIR = '../logs'

@@ -68,8 +68,11 @@ of each configuration test file.
 ###test1.json and test2.json
     Used for developement testing
 
+
+
+
 ##Format Guide for JSON Files (if needed)
-```
+```json
 {
   "banks": {
 // Contains any number of bank names.

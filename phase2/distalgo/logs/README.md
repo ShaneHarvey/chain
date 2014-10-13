@@ -1,7 +1,7 @@
 Log files are created inside this directory.
 One directory is created for each test file.
 
-```
+```bash
 $ dar main.da test2.json
 ```
 
