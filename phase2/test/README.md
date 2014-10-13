@@ -1,7 +1,6 @@
 #Test File Documentation
-This is the documentation for each test file. You do not need to read this as
-the file names and contents should be self explanatory, but we provide it
-anyway :)
+This is the documentation for each test file. It describes the objective
+of each configuration test file.
 
 
 #basic.json
@@ -66,6 +65,8 @@ anyway :)
     that the balance is actually $333.00.
 
 
+#test1.json and test2.json
+    Used for developement testing
 
 ##Format Guide for JSON Files (if needed)
 ```
