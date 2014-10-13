@@ -21,6 +21,8 @@ class Server(process):
         self.lifetime = conf['lifetime']
         self.recv_limit = conf['receive']
         self.send_limit = conf['send']
+        self.num_received = 0
+        self.num_sent = 0
         setup_chain(servers)
 
     def setup_chain(servers):
@@ -52,11 +54,11 @@ class Server(process):
     def print_init_settings():
         output('*** Initial settings ***')
         if is_head:
-            output('Operating as head server')
+            output('Operating as head server for bank %s' % bank_name)
         if is_tail:
-            output('Operating as tail server')
+            output('Operating as tail server for bank %s' % bank_name)
         if not is_tail and not is_head:
-            output('Operating as internal server')
+            output('Operating as internal server for bank %s' % bank_name)
         if predecessor:
             output('Predecessor is %s' % predecessor)
         if successor:
@@ -64,7 +66,7 @@ class Server(process):
         if lifetime >= 0:
             output('Server will shutdown after %s seconds' % lifetime)
         else:
-            output('Server has no time constraint')
+            output('Server has no lifetime constraint')
         if recv_limit >= 0:
             output('Server will shutdown after receiving %s messages' % recv_limit)
         else:
@@ -81,106 +83,137 @@ class Server(process):
         if lifetime >= 0:
             # wait t seconds, until we send s messages, or receive r messages
             if await(len(listof(mesg, received(mesg))) == recv_limit):
-                pass
+                output('Server reached message receive limit of %s' % recv_limit)
             elif len(listof(mesg, sent(mesg))) == send_limit:
-                pass
+                output('Server reached message send limit of %s' % send_limit)
             elif timeout(lifetime):
-                pass
+                output('Server reached lifetime constraint of %s seconds' % lifetime)
         else:
             # wait forever, until we send s messages, or receive r messages
             if await(len(listof(mesg, received(mesg))) == recv_limit):
-                pass
+                output('Server reached message receive limit of %s' % recv_limit)
             elif len(listof(mesg, sent(mesg))) == send_limit:
-                pass
+                output('Server reached message send limit of %s' % send_limit)
+        # Print the bank state!
+        log_bank()
         output("Terminating..")
 
-    def receive(msg=('balance', uid), from_=client):
+    def receive(msg=('balance', (reqid, account)), from_=client):
+        this_msg = ('balance', (reqid, account))
+        log_recv(this_msg, client)
         # Only tail replies to clients
         if not is_tail:
             return
-        # get account num from the uid
-        acc = uid[2]
         outcome = const.PROCESSED
-        send(('reply', (uid, outcome, bank[acc])), to=client)
+        reply_msg = ('reply', (reqid, outcome, account, str(bank[account])))
+        output('PROCESSED balance request for account %s, current balance $%s'\
+                    % (account, bank[account]))
+        log_sent(reply_msg, client)
+        send(reply_msg, to=client)
 
 # TODO: COMBINE these 2 methods!
 
-    def receive(msg=('withdrawal', (uid, amount)), from_=p):
+    def receive(msg=('withdrawal', (reqid, account, amount)), from_=p):
+        this_msg = ('withdrawal', (reqid, account, amount))
+        log_recv(this_msg, p)
         # If we are not the head server ignore client updates
         if not is_head and (p != predecessor):
             return
-        this_msg = ('withdrawal', (uid, amount))
 
         # check if this request is a duplicate or inconsisternt
-        reply = dup_or_incon(uid, this_msg)
+        reply = dup_or_incon(reqid, this_msg, account)
         if not reply:
-            # get account num from the update id
-            acc = uid[2]
             # withdrawal his $$$
-            if bank[acc] >= Decimal(amount):
-                bank[acc] -= Decimal(amount)
+            if bank[account] >= Decimal(amount):
+                bank[account] -= Decimal(amount)
                 outcome = const.PROCESSED
+                output('PROCESSED withdrawal of $%s from account %s, new balance $%s'\
+                    % (amount, account, bank[account]))
             else:
                 outcome = const.INSUFFICIENT_FUNDS
-            reply = ('reply', (uid, outcome, bank[acc]))
+                output('INSUFFICIENT FUNDS: account %s only has $%s, cannot withdraw $%s'\
+                    % (account, bank[account], amount))
+            reply = ('reply', (reqid, outcome, account, str(bank[account])))
             # Save this update to our update history
-            add_to_updates(uid, this_msg, reply)
+            add_to_updates(reqid, this_msg, reply)
 
         # forward the update
-        fwd_update(this_msg, reply, uid[0])
+        fwd_update(this_msg, reply, reqid[0])
 
-    def receive(msg=('deposit', (uid, amount)), from_=p):
+    def receive(msg=('deposit', (reqid, account, amount)), from_=p):
+        this_msg = ('deposit', (reqid, account, amount))
+        log_recv(this_msg, p)
         # If we are not the head server ignore client updates
         if not is_head and (p != predecessor):
             return
-        this_msg = ('deposit', (uid, amount))
 
         # check if this request is a duplicate or inconsisternt
-        reply = dup_or_incon(uid, this_msg)
+        reply = dup_or_incon(reqid, this_msg, account)
         if not reply:
-            # get account num from the update id
-            acc = uid[2]
             # Deposit his $$$
-            bank[acc] += Decimal(amount)
-            reply = ('reply', (uid, const.PROCESSED, bank[acc]))
+            bank[account] += Decimal(amount)
+            output('PROCESSED deposit of $%s into account %s, new balance $%s'\
+                    % (amount, account, bank[account]))
+            reply = ('reply', (reqid, const.PROCESSED, account, str(bank[account])))
             # Save this update to our update history
-            add_to_updates(uid, this_msg, reply)
+            add_to_updates(reqid, this_msg, reply)
 
         # forward the update
-        fwd_update(this_msg, reply, uid[0])
+        fwd_update(this_msg, reply, reqid[0])
 
     def fwd_update(orig_msg, reply, client):
         if is_tail:
             # Reply to the client
-            output('Sending client reply %s' % str(reply))
+            log_sent(reply, client)
             send(reply, to=client)
         else:
             # Forward the update to successor
-            output('Forwarding update %s' % str(orig_msg))
+            log_sent(orig_msg, successor)
             send(orig_msg, to=successor)
 
-    def add_to_updates(uid, request, reply):
-        assert uid not in updates, 'Error: request id %s already exisits in updates' % str(uid)
-        updates[uid] = (request, reply)
+    def add_to_updates(reqid, request, reply):
+        assert reqid not in updates, 'Error: request id %s already exisits in updates' % str(reqid)
+        output('Adding reqid to processed updates with the original request and reply')
+        updates[reqid] = (request, reply)
 
-    def get_prev_reply(uid):
-        return updates[uid][1] if uid in updates else None
+    def get_prev_mesg(reqid):
+        return updates[reqid][0]
 
-    def get_prev_mesg(uid):
-        return updates[uid][0] if uid in updates else None
+    def get_prev_reply(reqid):
+        return updates[reqid][1]
 
-    def dup_or_incon(uid, req_msg):
+    def dup_or_incon(reqid, req_msg, account):
         """
-        Check to see id this uid has been processed already. If the message
+        Check to see id this reqid has been processed already. If the message
         is the same then return the original reply otherwise a reply is
         generated with outcome as INCONSISTENT and the current balance
         """
-        if uid in updates:
-            # We have processed this uid already
-            if req_msg == get_prev_mesg(uid):
+        if reqid in updates:
+            # We have processed this reqid already
+            if req_msg == get_prev_mesg(reqid):
                 # DUPLICATE RESEND ORIGIN
-                return get_prev_reply(uid)
+                output('DUPLICATE REQUEST: resending original reply')
+                return get_prev_reply(reqid)
             else:
                 # Inconsistent
-                return ('reply', (uid, const.INCONSISTENT, bank[uid[2]]))
+                output('Request INCONSISTENT WITH HISTORY: sending current balance for account %s' % account)
+                return ('reply', (reqid, const.INCONSISTENT, account, str(bank[account])))
         return None
+
+    def log_sent(message, dest):
+        num_sent += 1
+        output('Sending message #%s: %s to=%s\n' % \
+            (str(num_sent), str(message), str(dest)))
+
+    def log_recv(message, source):
+        num_received += 1
+        output('Received message #%s: %s from=%s' % \
+            (str(num_received), str(message), str(source)))
+
+    def log_bank():
+        strbank = ['\nBank State:', 'ACCOUNT \t BALANCE']
+        for acc in sorted(bank.keys()):
+            bal = bank[acc]
+            strbal = '0.00' if bal == 0 else str(bal)
+            strbank.append('%s \t\t $%s' % (acc, strbal))
+        output('\n'.join(strbank))

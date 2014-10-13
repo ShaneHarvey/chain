@@ -1,4 +1,4 @@
-          CSE535: Asynchronous Systems            2014-10-04
+          CSE535: Asynchronous Systems            2014-10-11
        Scott Stoller, Stony Brook University
 
           Project: Chain Replication
@@ -37,6 +37,14 @@ Your implementation must allow each server to run on a different machine.
 All communication must be explicit using some form of messages.  Use of
 shared files or distributed shared memory is not permitted.
 
+[UPDATE 2014-10-10] as mentioned in the last paragraph of section 3.0 of
+the paper, the implementation should forward "state changes" along the
+chain, not forward the state.  in our project, an update message should
+specify how an account object should be updated.  an update message should
+not contain the entire state of the affected account (e.g., it should not
+contain the entire history of processed transactions for the affected
+account).
+
 To simplify the correctness proof, the papers describe the protocol as
 storing a complete history (sequence of updates) for each object.  As the
 papers point out, an actual implementation (like yours!) should store the
@@ -61,6 +69,7 @@ enum Outcome { Processed, InconsistentWithHistory, InsufficientFunds }
 
 class Reply {
   string reqID;
+  string accountNum;
   Outcome outcome;
   float balance;
 }
@@ -81,40 +90,48 @@ UPDATES
   simply return <reqID, Processed, balance>." with "if exactly the same
   transaction has already been processed, re-send the same reply."]
 
+  [UPDATE 2014-10-10: in each of the following 3 paragraphs, I added
+  accountNum as the second component of the reply.]
+
   deposit(reqID, accountNum, amount): if a transaction with this reqID has
   not been processed for this account, increase the account balance by the
   amount, append the transaction to processedTrans, and return <reqID,
-  Processed, balance>, where balance is the current balance.  if exactly
-  the same transaction has already been processed, re-send the same reply.
-  if a different transaction with the same reqID has been processed for
-  this account, return <reqID, InconsistentWithHistory, balance>.
+  accountNum, Processed, balance>, where balance is the current balance.
+  if exactly the same transaction has already been processed, re-send the
+  same reply.  if a different transaction with the same reqID has been
+  processed for this account, return <reqID, accountNum,
+  InconsistentWithHistory, balance>.
 
   withdraw(reqId, accountNum, amount): if a transaction with this reqID has
   not been processed for this account, and the account balance is at least
   the amount, decrease the account balance by the amount, append the
-  transaction to processedTrans, and return <reqID, Processed, balance>.
-  if a transaction with this reqID has not been processed for this account,
-  and the account balance is less than the amount, return <reqID,
-  InsufficientFunds, balance>.  if exactly the same transaction has already
-  been processed, re-send the same reply.if a different transaction with
-  the same reqID has been processed, return <reqID,
-  InconsistentWithHistory, balance>.
+  transaction to processedTrans, and return <reqID, accountNum, Processed,
+  balance>.  if a transaction with this reqID has not been processed for
+  this account, and the account balance is less than the amount, return
+  <reqID, accountNum, InsufficientFunds, balance>.  if exactly the same
+  transaction has already been processed, re-send the same reply.  if a
+  different transaction with the same reqID has been processed for this
+  account, return <reqID, accountNum, InconsistentWithHistory, balance>.
+  [UPDATE 2014-10-11: added "for this account" in the preceding sentence.]
 
   transfer(reqID, accountNum, amount, destBank, destAccount): if a
-  transaction with this reqID has not already been processed, and the
-  account balance is at least the transfer amount, then transfer the
+  transaction with this reqID has not been processed for this account, and
+  the account balance is at least the transfer amount, then transfer the
   requested amount of funds from the specified account in this bank to
-  destAccount in destBank, and return <reqID, Processed, balance>.  if a
-  transfer with this reqID has not already been processed, and the account
-  balance is less than the transfer amount, return <reqID,
-  InsufficientFunds, balance>.  if exactly the same transaction has already
-  been processed, re-send the same reply.  if a different transaction with
-  the same reqID has been processed, return <reqID, InconsistentWithHistory, 
-  balance>.  [UPDATE, 2014-09-17: added the following] It is acceptable for
-  a server of either the source bank or the destination bank to send a
-  reply to the client.  However, the client should send the request only to
-  a server of the source bank; the client should not need to send a request
-  to a server of the destination bank.
+  destAccount in destBank, and return <reqID, accountNum, Processed,
+  balance>.  if a transfer with this reqID has not been processed for this
+  account, and the account balance is less than the transfer amount, return
+  <reqID, accountNum, InsufficientFunds, balance>.  if exactly the same
+  transaction has already been processed, re-send the same reply.  if a
+  different transaction with the same reqID has been processed for this
+  account, return <reqID, accountNum, InconsistentWithHistory, balance>.
+  [UPDATE 2014-10-11: added "for this account" in the preceding sentence
+  and in the first and second sentences of this paragraph.]  [UPDATE,
+  2014-09-17: added the following] It is acceptable for a server of either
+  the source bank or the destination bank to send a reply to the client.
+  However, the client should send the request only to a server of the
+  source bank; the client should not need to send a request to a server of
+  the destination bank.
 
 ============================================================
 SIMPLIFICATIONS
@@ -171,6 +188,9 @@ each bank, Internet addresses and port numbers of the master and servers
 (for all banks), the number of clients of each bank, a description of the
 requests submitted by each client (explained below), server
 startup delays, and server lifetimes (explained below).
+
+[UPDATE 2014-10-07: added the following.]  The DistAlgo implementation
+should ignore the IP addresses and port numbers in the configuration file.
 
 the configuration file should have a self-describing syntax.  instead of
 each line containing only a value, whose meaning depends on the line number
@@ -235,7 +255,7 @@ initial settings, the content of every message it received, the content of
 every message it sent, and every significant internal action it took.
 every log entry should contain a real-time timestamp.  every log entry for
 a sent message should contain a send sequence number n, indicating that it
-is for the n'th message sent by this process.  every log entry for a sent
+is for the n'th message sent by this process.  every log entry for a received
 message should contain a receive sequence number n, indicating that it is
 for the n'th message received by this process.  (send and receive sequence
 numbers are useful for choosing server lifetimes that correspond to
@@ -549,7 +569,25 @@ lab PCs or your own laptop.
 bring a printout of your README to the demo.  the TA will write notes on it
 and keep it after the demo.
 
-the demo timeslots are fairly short, so you should decide in advance which
-testcases that you want to show the TA in order to convince him that your
-program is correct.  please login and get organized in advance, so you are
-ready to start running your program when your demo timeslot begins.
+[UPDATE 2014-10-11: revised and extended the following.]
+
+Demos proceed as follows:
+
+1. Download your submission from Blackboard.
+
+2. Delete files produced by the compiler (e.g., .class, .pyc).
+
+3. Compile your code.
+
+4. Demonstrate your system.  The TA will mainly watch while you give a
+prepared demonstration.  It should consist of a concise sequence of
+testcases that illustrates that all of the requirements are satisfied.  
+
+You should have a detailed plan for which testcases to run.  You should be
+prepared to indicate which testcase covers each requirement.  The TA will
+keep track of this using the grading sheet, available under Documents on
+Blackboard.  The TA may ask you to run additional testcases.
+
+Ill-prepared teams that try to invent testcases during the demo are likely
+to run out of time.  only partial credit will be given for functionality
+not demonstrated during the demo.
