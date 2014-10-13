@@ -53,13 +53,13 @@ Shane Harvey and Soumadip Mukherjee design the pseudo code for this project.
 After understanding the design, we decided to spilt the work mostly by language.
 
 Shane Harvey implemented this non-fault tolerant chain replication implementaion
-in DistAlgo.
-Soumadip Mukherjee reviewed, tested, and helped debug the DistAlgo code.
+in DistAlgo. Soumadip Mukherjee reviewed, tested, and helped debug the DistAlgo code.
 
 Soumadip Mukherjee implemented the non-fault tolerant chain replication implementaion
-in Java.
-Shane Harvey reviewed, tested, and helped debug the Java code.
+in Java. Shane Harvey reviewed, tested, and helped debug the Java code.
 
+To this end, we believe we distributed the work about evenly and total time spend on
+each implementation was similar.
 
 ##OTHER COMMENTS
 None?
