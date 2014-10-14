@@ -161,7 +161,7 @@ public class ExecSimulation {
                     }
                     BankArray.add(binfo);
                 }
-                System.out.println("Done Processing Servers");
+                //System.out.println("Done Processing Servers");
                 JSONArray clients = (JSONArray)doc.get("clients");
                 ArrayList<ClientInfo> clientsList = new ArrayList<ClientInfo>();
                 for(int i = 0; i < clients.size(); i++){
@@ -235,11 +235,14 @@ public class ExecSimulation {
                     if(analyze.servers.size()== 1){
                         ServerInfo si = analyze.servers.get(0);
                         execCmd += "HEAD_TAIL " +si.IP + ":" + si.Port;
-                        execCmd += " localhost:0 localhost:0 localhost:0 "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send;
+                        execCmd += " localhost:0 localhost:0 localhost:0 "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send+ " " + analyze.bank_name;;
                         hIP = si.IP;
                         hPort = si.Port;
-                        tIP = si.Port;
+                        tIP = si.IP;
                         tPort = si.Port;
+                        System.out.println(execCmd);
+                        Thread.sleep(500);
+                        Process pro = Runtime.getRuntime().exec(execCmd);
                     }
                     else{
                         for(int j = 0; j < analyze.servers.size(); j++){
@@ -344,6 +347,8 @@ public class ExecSimulation {
                                 + " " + analyze.request_retries + " " + analyze.resend_head;
                      
                     }
+                    Thread.sleep(500);
+                    //System.out.println(execCommand);
                     System.out.println("Client " + (i+1) + " started" );
                     Process serv1 = Runtime.getRuntime().exec(execCommand);
                     //System.out.println(requestsString);
