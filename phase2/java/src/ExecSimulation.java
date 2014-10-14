@@ -224,6 +224,9 @@ public class ExecSimulation {
                 double upperPercent = 1.0;
                 double result;
                 ArrayList<ServerInfoForClient> servInfoCli = new ArrayList<ServerInfoForClient>();
+
+                // List of all servers is saved so that we can wait for them to exit.
+                ArrayList<Process> serverPros = new ArrayList<Process>();
                 for(int i = 0 ; i < BankArray.size(); i++){
                     BankInfo2 analyze = BankArray.get(i);
                     //System.out.println(analyze.bank_name);
@@ -243,6 +246,7 @@ public class ExecSimulation {
                         System.out.println(execCmd);
                         Thread.sleep(500);
                         Process pro = Runtime.getRuntime().exec(execCmd);
+                        serverPros.add(pro);
                     }
                     else{
                         for(int j = 0; j < analyze.servers.size(); j++){
@@ -280,6 +284,7 @@ public class ExecSimulation {
                             }
                             Thread.sleep(500);
                             Process pro = Runtime.getRuntime().exec(execCmd);
+                            serverPros.add(pro);
                         }
                     }
                     ServerInfoForClient newServInfoForCli = new ServerInfoForClient(hPort, hIP, tPort, tIP, bn);
@@ -293,6 +298,9 @@ public class ExecSimulation {
                 }
                 banksCliParam = banksCliParam.replaceFirst("@", "");
                 //System.out.println(banksCliParam);
+
+                // List of clients is saved so that we can wait for them to exit.
+                ArrayList<Process> clientPros = new ArrayList<Process>();
                 for(int i  = 0 ; i < clientsList.size(); i++){
                     ClientInfo analyze = clientsList.get(i);
                     String requestsString= "";
@@ -350,12 +358,26 @@ public class ExecSimulation {
                     Thread.sleep(500);
                     //System.out.println(execCommand);
                     System.out.println("Client " + (i+1) + " started" );
-                    Process serv1 = Runtime.getRuntime().exec(execCommand);
+                    Process cliPro = Runtime.getRuntime().exec(execCommand);
+                    clientPros.add(cliPro);
                     //System.out.println(requestsString);
                 }
-                
-                
-                
+                // Wait for all the clients to terminate
+                for(Process clientPro: clientPros) {
+                    try {
+                        clientPro.waitFor();
+                        System.out.println("Client process finished.");
+                    } catch (InterruptedException e) {
+                        System.out.println("Interrupted while waiting for client.");
+                    }
+                }
+                // Sleep for two seconds
+                Thread.sleep(2000);
+                // Force termination of the servers
+                for(Process serverPro: serverPros) {
+                    serverPro.destroy();
+                    System.out.println("Killed server.");
+                }
                 //System.out.println("asdf");
         }
         
