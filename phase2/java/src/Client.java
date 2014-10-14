@@ -110,11 +110,16 @@ public class Client {
     }
     private static void createFile() {
         try {
+            String pound = "\n\n############################################################\n\n";
             String fname = "../logs/Client_" +myPort + ".log";
             logFile = new File(fname);
             if (!logFile.exists()) {
                 logFile.createNewFile();
             }
+            BufferedWriter output = new BufferedWriter(new FileWriter(logFile, true));
+            output.write(pound + new Date() + pound);
+            output.close();
+
             writeToLog("Client. My Host:Port numer:  " + myIP +":"+ myPort + ". Rely timeour " + rely_timeout + ", request retiries " +request_retries + ", resend  head " + resend_head + ".");
             if(isRandom){
                 String [] parts = percentages.split(",");

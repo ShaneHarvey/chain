@@ -147,14 +147,6 @@ public class ExecSimulation {
                     for (Object chain1 : chain) {
                         
                         JSONObject serv = (JSONObject)chain1;
-                        /*String ip =(String)serv.get("ip");
-                        String port ="", delay = "", lifetime ="", receive="", send="";
-                        port += serv.get("port");
-                        delay += serv.get("start_delay");
-                        lifetime += serv.get("lifetime");
-                        receive += serv.get("receive");
-                        send += serv.get("send");*/
-                        
                         ServerInfo sinfo = new ServerInfo((String)serv.get("ip"),serv.get("port").toString(), serv.get("start_delay").toString(), serv.get("lifetime").toString(), serv.get("receive").toString(), serv.get("send").toString());
                         binfo.servers.add(sinfo);
                         //System.out.println(serv.get("ip") + ":" + serv.get("port"));
