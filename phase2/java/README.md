@@ -35,27 +35,6 @@ Step 6: To run the simulation, type in the following command. Not that the argum
 ```bash
 $ java -cp ./json-simple-1.1.1.jar:. ExecSimulation ../config/test1.json
 ```
-####Cleaning Up Servers
-In this implementation the bank servers run **forever.** To clean up these processes the user needs to kill them, ie:
-```bash
-$ make test-chain.json
-java -cp ./json-simple-1.1.1.jar:. ExecSimulation ../config/chain.json
-Chase
-Done Processing Servers
-java Server HEAD localhost:50000 localhost:0 localhost:50001 localhost:0 0 3 -1 -1 Chase
-java Server MIDDLE localhost:50001 localhost:50000 localhost:50002 localhost:0 0 4 -1 -1 Chase
-java Server TAIL localhost:50002 localhost:50001 localhost:0 localhost:0 0 5 -1 -1 Chase
-Client 1 started
-$ ps -ax | grep java
- 2549 pts/0    Sl     0:00 java -agentpath:/usr/lib64/libabrt-java-connector.so=abrt=on Server HEAD localhost:50000 localhost:0 localhost:50001 localhost:0 0 3 -1 -1 Chase
- 2568 pts/0    Sl     1:40 java -agentpath:/usr/lib64/libabrt-java-connector.so=abrt=on Server MIDDLE localhost:50001 localhost:50000 localhost:50002 localhost:0 0 4 -1 -1 Chase
- 2587 pts/0    Sl     1:40 java -agentpath:/usr/lib64/libabrt-java-connector.so=abrt=on Server TAIL localhost:50002 localhost:50001 localhost:0 localhost:0 0 5 -1 -1 Chase
- 3072 pts/0    S+     0:00 grep --color=auto java
-$ kill 3072
-$ ps -ax | grep java
- 3275 pts/0    S+     0:00 grep --color=auto java
-$
-```
 
 
 ##MAIN FILES:
