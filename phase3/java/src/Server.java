@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -603,22 +598,28 @@ public class Server implements Runnable{
         }
         
     }
+    @Override
     public void run() {
         try {
-            //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
             datagramChannel = DatagramChannel.open();
             datagramChannel.configureBlocking(false);
             datagramChannel.socket().bind(new InetSocketAddress(myPort));
+            //int i = 0, calc;//for testig purposes
             while(true){
-                Thread.sleep(5000);
-                String newData = "New String to write to file...";
+                
+                if(myPort == 0){
+                    myPort = 50000;
+                }
+                String newData = ""+myPort;
                 ByteBuffer buf = ByteBuffer.allocate(48);
                 buf.clear();
                 buf.put(newData.getBytes());
                 buf.flip();
 
                 int bytesSent = datagramChannel.send(buf, new InetSocketAddress("localhost", 49999));
-                System.out.println("Bytes written: " + bytesSent);
+                //calc = i * 1000;
+                Thread.sleep(1000);
+                //i++;
             }
         } catch (IOException ex) {
             Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
@@ -639,15 +640,13 @@ public class Server implements Runnable{
         history = new HashMap<String, ReqObject>();
         parseArgs(args);
         createFile();
-        /*writeToLog("TESTING1...");
-        writeToLog("TESTING2...");
-        writeToLog("TESTING3...");*/
-        /*try {
+        try {
             socketInit();
         } catch (IOException ex) {
             Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
         }
-        System.out.println("Success");
+
+        /*System.out.println("Success");
         String depositTest = "deposit#127.0.0.1:5000%Chase%1%1#100.00";
         String depositTest2 = "deposit#127.0.0.1:5000%Chase%1%1#200.00";
         String withTest = "withdrawal#127.0.0.1:5000%Chase%1%1#50.00";
@@ -655,11 +654,11 @@ public class Server implements Runnable{
         String withTest2 = "withdrawal#127.0.0.1:5000%Chase%1%1#200.00";
         //parseRequest(depositTest, MessagesEnum.DATACHANNELREAD);
         //parseRequest(depositTest2, MessagesEnum.DATACHANNELREAD);
-        /*/
-        /*parseRequest(withTest);
-        parseRequest(queryTest,MessagesEnum.DATACHANNELREAD);
-        parseRequest(queryTest, MessagesEnum.SOCKCHANNELREAD);
         */
+        //parseRequest(withTest);
+        //parseRequest(queryTest,MessagesEnum.DATACHANNELREAD);
+        //parseRequest(queryTest, MessagesEnum.SOCKCHANNELREAD);
+        
         //parseRequest(depositTest);
         //parseRequest(withTest2);
         System.out.println("Success2");
@@ -670,4 +669,3 @@ public class Server implements Runnable{
          */
     }
 }
-
