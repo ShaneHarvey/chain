@@ -614,7 +614,7 @@ public class Server implements Runnable{
                 if(myPort == 0){
                     myPort = 50000;
                 }
-                String newData = "PING#"+myPort;
+                String newData = "PING#"+bankName+":"+myPort;
                 ByteBuffer buf = ByteBuffer.allocate(48);
                 buf.clear();
                 buf.put(newData.getBytes());
