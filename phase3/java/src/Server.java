@@ -533,33 +533,37 @@ public class Server implements Runnable{
                         System.out.println("In SocketChannel");
                         ByteBuffer buf = ByteBuffer.allocate(MAXBUFFER);
                         buf.clear();
-                        int bytesRead = channel.read(buf);
-                        if (bytesRead == -1) {
-                            System.out.println("ConnectionClosed");
+                        try{
+                            int bytesRead = channel.read(buf);
+                            if (bytesRead == -1) {
+                                System.out.println("ConnectionClosed");
+                                channel.close();
+                            }
+                            String ret = new String(buf.array());
+                            //System.out.println(ret);
+                            buf.clear();
+                            buf.flip();
+                            buf.clear();
+                            parseRequest(ret, MessagesEnum.SOCKCHANNELREAD);
+                            System.out.println("bytes read: " + bytesRead + " " + ret);
+                            if (myPosition == ServerStatus.HEAD || myPosition == ServerStatus.MIDDLE) {
+                                System.out.println(sServerPort);
+                                if (successorSock == null) {
+                                    successorSock = SocketChannel.open();
+                                    successorSock.connect(new InetSocketAddress("localhost", sServerPort));
+                                    System.out.println("Connection to successor established");
+                                }
+                                while (buf.hasRemaining()) {
+                                    successorSock.write(buf);
+                                };
+                                System.out.println("Sent to successor");
+                            }
+
+                            it.remove();
+                            continue;        
+                        }catch(IOException e){
                             channel.close();
                         }
-                        String ret = new String(buf.array());
-                        //System.out.println(ret);
-                        buf.clear();
-                        buf.flip();
-                        buf.clear();
-                        parseRequest(ret, MessagesEnum.SOCKCHANNELREAD);
-                        System.out.println("bytes read: " + bytesRead + " " + ret);
-                        if (myPosition == ServerStatus.HEAD || myPosition == ServerStatus.MIDDLE) {
-                            System.out.println(sServerPort);
-                            if (successorSock == null) {
-                                successorSock = SocketChannel.open();
-                                successorSock.connect(new InetSocketAddress("localhost", sServerPort));
-                                System.out.println("Connection to successor established");
-                            }
-                            while (buf.hasRemaining()) {
-                                successorSock.write(buf);
-                            };
-                            System.out.println("Sent to successor");
-                        }
-                        
-                        it.remove();
-                        continue;
                     }
                     if (ch != null) {
                         System.out.println("In Datagram");
@@ -603,14 +607,14 @@ public class Server implements Runnable{
         try {
             datagramChannel = DatagramChannel.open();
             datagramChannel.configureBlocking(false);
-            datagramChannel.socket().bind(new InetSocketAddress(myPort));
+            //datagramChannel.socket().bind(new InetSocketAddress(myPort));
             //int i = 0, calc;//for testig purposes
             while(true){
                 
                 if(myPort == 0){
                     myPort = 50000;
                 }
-                String newData = ""+myPort;
+                String newData = "PING#"+myPort;
                 ByteBuffer buf = ByteBuffer.allocate(48);
                 buf.clear();
                 buf.put(newData.getBytes());
@@ -636,7 +640,8 @@ public class Server implements Runnable{
      * Successor etc
      */
     public static void main(String[] args) {
-        /*bank = new HashMap<String, Double>();
+        (new Thread(new Server())).start();
+        bank = new HashMap<String, Double>();
         history = new HashMap<String, ReqObject>();
         parseArgs(args);
         createFile();
@@ -662,7 +667,7 @@ public class Server implements Runnable{
         //parseRequest(depositTest);
         //parseRequest(withTest2);
         System.out.println("Success2");
-        (new Thread(new Server())).start();
+        
         /*   deposit#clientIPPORT%bank_name%accountnum%seq#amount
          *     withdrawal#clientIPPORT%bank_name%accountnum%seq#amount
          *     balance#clientIPPORT%bank_name%accountnum%seq
