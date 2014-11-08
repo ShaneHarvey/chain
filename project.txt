@@ -1,4 +1,4 @@
-          CSE535: Asynchronous Systems            2014-10-11
+          CSE535: Asynchronous Systems            2014-11-05
        Scott Stoller, Stony Brook University
 
           Project: Chain Replication
@@ -162,14 +162,20 @@ in a single process.  you should run testcases with up to 3 banks and up to
 ============================================================
 NETWORK PROTOCOLS
 
-as stated in the paper, communication between servers (including the
-master) should be reliable, so use TCP as the underlying network protocol
-for it, and assume that TCP is reliable.  this applies to communication
-between servers in the same or different chains.
+as stated in the paper, communication between servers should be reliable,
+so use TCP as the underlying network protocol for it, and assume that TCP
+is reliable.  this applies to communication between servers in the same or
+different chains.  also, communication between the master and servers is
+reliable, so use TCP for it.
 
 communication between clients and servers may be unreliable, so use UDP as
 the underlying network protocol for it.  for simplicity, assume that each
 request or reply fits in a single UDP packet.
+
+[UPDATE 2014-11-04] the paper does not state whether communication between
+clients and the master is reliable.  for simplicity, I suggest that you
+assume it is reliable, and use TCP for it.
+
 
 ============================================================ 
 CONFIGURATION FILE
@@ -189,14 +195,16 @@ each bank, Internet addresses and port numbers of the master and servers
 requests submitted by each client (explained below), server
 startup delays, and server lifetimes (explained below).
 
-[UPDATE 2014-10-07: added the following.]  The DistAlgo implementation
-should ignore the IP addresses and port numbers in the configuration file.
+[UPDATE 2014-10-07] The DistAlgo implementation should ignore the IP
+addresses and port numbers in the configuration file.
 
 the configuration file should have a self-describing syntax.  instead of
 each line containing only a value, whose meaning depends on the line number
 (where it is hard for readers to remember which line number contains which
 value), each line should contain a label and a value, so the reader easily
 sees the meaning of each value.
+
+[UPDATE 2014-10-12] different requests can be specified for each client.
 
 the description of a client's requests in the configuration file can have
 one of two forms: (1) a single item random(seed, numReq, probGetBalance,
@@ -228,6 +236,9 @@ terminates immediately after sending its n'th message), or (3) "unbounded"
 (2) can be replaced with the string "random", in which case the server
 generates a random number in a reasonable range, outputs it to a log file,
 and uses that number.
+
+[UPDATE 2014-11-02] You are welcome to implement additional forms of server
+lifetime, if it helps you construct desired failure scenarios.
 
 configuration files that satisfy some variant of the above requirements are
 also acceptable, provided they provide a comparable level of control, as
@@ -264,6 +275,10 @@ syntax, in the same style as described for the configuration file.  for
 example, each component of a message should be labeled to indicate its
 meaning.
 
+[UPDATE 2014-10-12] it's OK for multiple processes to write to the same log
+file, provided each log entry is clearly labeled with the process that
+produced it.
+
 ============================================================
 FAILURE DETECTION
 
@@ -299,6 +314,29 @@ you should adopt the second approach.  your testing scenarios will not
 involve wide-area networks or high network congestion, so it should be easy
 to find settings that avoid false alarms, and you will gain the experience
 of implementing a failure detector.
+
+[UPDATE 2014-10-26]
+here are two ways to get a server process to periodically send heartbeat
+messages to the master in DistAlgo.
+
+1. create a separate thread to do this.  this is not especially difficult
+in DistAlgo.  DistAlgo does not require any special treatment of threads.
+use standard Python thread commands.
+
+2. send the heartbeat messages in the main thread.  for example, the method
+could look like this:
+
+while True:
+  if (await(False)): pass
+  elif timeout(T): send heartbeat message
+
+the process will block at the await statement, running receive handlers
+when messages arrive, until time T has elapsed, at which time the process
+will send a heartbeat message, and then loop back to the await statement.
+
+similar code can be used in the master to periodically "wake up" and check
+whether it has recently received enough heartbeat messages from each
+server.
 
 ============================================================
 PROGRAMMING LANGUAGES
@@ -500,17 +538,19 @@ sep  5 phase 0: team formation (2 weeks)
 sep 19 phase 1: pseudo-code  (2 weeks)
 oct 13 phase 2: non-fault-tolerant service (3 weeks
   [UPDATE 2014-09-29: changed phase 2 due date from oct 10 to oct 13]
-oct 17 hw1
+oct 20 problem set 1
+  [UPDATE 2014-10-16: changed problem set 1 due date from oct 17 to oct 20]
 oct 24 midterm exam
-nov  7 phase 3: fault-tol svc (4 wks after phase2 - 1 wk for hw1&exam = 3 weeks)
-nov 21 phase 4: transfers (2 weeks)
-dec 5 hw2 last day of class
+nov 12 phase 3: fault-tol svc (4.3 wks after phase2 - 1.5 wks for hw1&exam = 2.8 wks)
+  [UPDATE 2014-11-04: changed phase 3 due date from nov 7 to nov 12]
+nov 21 phase 4: transfers (1.3 weeks)
+dec 5 problem set 2 last day of class
 dec 17 8am-10:45am (incl 15min for exam admin) final exam
 
 the time interval in parentheses is the amount of time allocated for work
 on that phase of the project.
 
-[UPDATE 2014-09-02: I added dates for homeworks and exams.  I changed phase2
+[UPDATE 2014-09-02: I added dates for homeworks and exams.  I changed phase 3
 due date from oct 31 to nov 7, due to hw1 and the midterm. ]
 
 ============================================================
@@ -591,3 +631,105 @@ Blackboard.  The TA may ask you to run additional testcases.
 Ill-prepared teams that try to invent testcases during the demo are likely
 to run out of time.  only partial credit will be given for functionality
 not demonstrated during the demo.
+
+============================================================
+DEMO SIGNUP    [UPDATE 2014-10-13: added this section]
+
+each team should sign up for one demo timeslot with one TA.  if you are
+friends with either TA, you must sign up for a demo with the other TA, to
+avoid conflict of interest.  otherwise, you can sign up for a demo with
+either TA, subject to the following condition: Ankit will hold exactly 16
+demos, and Shachee will hold exactly 13 demos.  both TAs offered more
+timeslots than the number of demos they will hold, to provide you with more
+scheduling flexibility, so you must count the appointments to check whether
+one TA has reached his or her demo limit, and if so, you must sign up for a
+demo with the other TA.
+
+timeslots are available this week and next week.  a later demo does not
+give more time to work on the project, because you must download and run
+the version you submitted on blackboard.
+
+on the google calendar, an available timeslot is represented by an
+off-white box labeled "phase 2" or "phase 2 demo".  a timeslot that you
+booked is represented by a dark blue rectangle (the same size as the
+off-white ones, corresponding to the demo duration of 45 minutes).  ignore
+the tall blue rectangles, if any.  to book a timeslot, click on it, and
+fill out the dialog box.  to cancel, delete the event from your own google
+calendar.
+
+make sure the time zone for your google calendar is "(GMT-05:00) Eastern
+Time", as follows: navigate to your google calendar, click on the gear
+icon, click on Settings, and check the setting for "Your current time
+zone".
+
+Ankit Arya:
+https://www.google.com/calendar/selfsched?sstoken=UUZpLXhycHYxVjh6fGRlZmF1bHR8MTkzNDI1NTZjN2VlOWFlNmEwNjA2ZmFiZTIwODFlMzE
+
+Shachee Mishra:
+https://www.google.com/calendar/selfsched?sstoken=UUVRQWljMEpXUDdHfGRlZmF1bHR8MzdiMWVhMDExYTE4OWE3NzFlY2MyYTUyOTJhY2Q4Y2Y
+
+============================================================
+DISTALGO TIP: WAITING FOR TWO KINDS OF MESSAGES WITH DIFFERENT TIMEOUTS
+
+suppose a client process needs to wait for responses (to requests) with
+timeout T1, and needs to wait for failure notifications with no timeout.
+here is the simplest way (I think) to achieve this in DistAlgo.  a single
+thread suffices, because there is no timeout for failure notifications.
+
+this sample code uses ideal DistAlgo sntax, not Python DistAlgo syntax.
+
+  receive ('failureNotification', ...) from p: 
+    <handle failure notification>
+
+  receive ('response', reqID, result) from p: 
+    <handle response>
+
+  while ...:
+    ...
+    // wait for a response to the request with the specified reqID
+    reqID = ...
+    await some ('response', =reqID, result) in received : pass
+    timeout T1: <handle missing response, e.g., resend the request>
+    ...
+
+note that this program uses an existential quantification over the received
+sequence to check whether a response to request reqID has been received;
+alternatively, the program could use its own data structures for this
+purpose.  the equals sign in "=reqID" indicates that reqID is a parameter
+of the comprehension; in Python DistAlgo syntax, use an underscore instead;
+see Section 3 of the DistAlgo language reference for details.
+
+the use of a receive handler for response messages is not essential.  the
+receive handler can be incorporated in the await statement as follows:
+
+  receive ('failureNotification', ...) from p: 
+    <handle failure notification>
+
+  while ...:
+    ...
+    // wait for a response to the request with the specified reqID
+    reqID = ...
+    await some ('response', =reqID, result) from p in received : <handle response>
+    timeout T1: <handle missing response, e.g., resend the request>
+    ...
+
+recall from the Quantification section of the DistAlgo Language Description
+that "When an existential quantification returns true, all variables in the
+query are also bound to a combination of values, called a witness, that
+satisfy all the membership clauses and condition bexp.."  thus, in the
+above program, variables "result" and "p" are bound by the existential
+quantification and can be used in the code for <handle response>, just as
+they can be used in the receive handler in the original version of this
+program.
+
+more generally, suppose a process is waiting for two kinds of messages,
+each with a different timeout period (not "no timeout").  in this case, the
+simplest approach is to use two threads, each executing an await statement
+with the appropriate timeout and with a condition that tests whether the
+corresponding kind of message has been received.  it is possible but
+cumbersome to avoid use of multiple threads; basically the program needs to
+keep track of the next deadline for receiving either kind of message, and
+execute an await statement with a timeout equal to that deadline.  this is
+cumbersome because the next deadline depends not only on the timeout
+periods for the two kinds of messages but also the actual arrival times of
+previous messages.
