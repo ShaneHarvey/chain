@@ -1,0 +1,71 @@
+import glob
+import json
+import re
+import sys
+import os
+
+c = import_da('client')
+s = import_da('server')
+const = import_da('const')
+
+
+def parse_config(file_name):
+    with open(file_name) as f:
+        data = json.load(f)
+        bank_dict = data['banks']
+        client_list = data['clients']
+    return (bank_dict, client_list)
+
+def create_log_dir(config_file):
+    testdir = os.path.join(const.LOG_DIR, os.path.splitext(os.path.basename(config_file))[0])
+    p = re.compile(r'.*_(\d+)$')
+    nums = []
+    for file_name in glob.glob(testdir + '_[0-9]*'):
+        m = p.match(file_name)
+        if m:
+            nums.append(int(m.group(1)))
+    num = max(nums) + 1 if nums else 1
+    logdir = testdir + '_' + str(num)
+    # make log dir
+    os.makedirs(logdir)
+    return logdir
+
+def main():
+    """Usage: main.da [test_file.json]
+    """
+    global c, s
+    # parse config to find bank servers and number of clients
+    config_file = sys.argv[1] if len(sys.argv) > 1 else '../config/basic.json'
+    logdir = create_log_dir(config_file)
+    bank_dict, client_list = parse_config(config_file)
+    if not client_list:
+        print('Error: empty client list from file %s' % config_file)
+        sys.exit(1)
+    # init bank object which is passed to each client
+    banks = dict()
+    # First setup the server chain for each bank
+    for bank_name in bank_dict:
+        config_slist = bank_dict[bank_name]['chain']
+        if not config_slist:
+            print('Error: bank %s from file %s has no server config' % (bank_name, config_file))
+            sys.exit(1)
+        print('Starting %s servers for %s bank' % (len(config_slist), bank_name))
+        servers = new(s.Server, num=len(config_slist))
+        # Setup the chain for 'Chase' bank
+        # TODO: setup chain here rather than hack with slist :)
+        slist = list(servers)
+        for serv, serv_conf, i in zip(servers, config_slist, range(1, len(servers)+1)):
+            logfile = os.path.join(logdir, '_'.join(['server', bank_name, str(i)]) + '.log')
+            setup(serv, [slist, bank_name, serv_conf, logfile])
+        # Save head and tail to banks dictionary
+        banks[bank_name] = {'head': slist[0], 'tail': slist[-1]}
+        start(servers)
+
+    # Now setup the clients
+    clients = new(c.Client, num=len(client_list))
+    for cli, cli_conf, i in zip(clients, client_list, range(1, len(client_list)+1)):
+        logfile = os.path.join(logdir, 'client_' + str(i) + '.log')
+        # pass bank["Chase"] : {head: head_s, tail: tail_s}
+        setup(cli, [banks, cli_conf, logfile])
+
+    start(clients)

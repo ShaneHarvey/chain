@@ -1,0 +1,150 @@
+{
+  "banks": {
+    "Chase": {
+      "chain": [
+        {
+          "ip": "localhost",
+          "port": 50000,
+          "start_delay": 0,
+          "lifetime": 6,
+          "receive": -1,
+          "send": -1
+        },
+        {
+          "ip": "localhost",
+          "port": 50001,
+          "start_delay": 0,
+          "lifetime": 7,
+          "receive": -1,
+          "send": -1
+        },
+        {
+          "ip": "localhost",
+          "port": 50002,
+          "start_delay": 0,
+          "lifetime": 8,
+          "receive": -1,
+          "send": -1
+        }
+      ]
+    },
+    "TD": {
+      "chain": [
+        {
+          "ip": "localhost",
+          "port": 50003,
+          "start_delay": 0,
+          "lifetime": 6,
+          "receive": 25,
+          "send": -1
+        },
+        {
+          "ip": "localhost",
+          "port": 50004,
+          "start_delay": 0,
+          "lifetime": 7,
+          "receive": 25,
+          "send": -1
+        }
+      ]
+    },
+    "HSBC": {
+      "chain": [
+        {
+          "ip": "localhost",
+          "port": 50005,
+          "start_delay": 0,
+          "lifetime": 6,
+          "receive": -1,
+          "send": 25
+        },
+        {
+          "ip": "localhost",
+          "port": 50006,
+          "start_delay": 0,
+          "lifetime": 7,
+          "receive": -1,
+          "send": 25
+        },
+        {
+          "ip": "localhost",
+          "port": 50007,
+          "start_delay": 0,
+          "lifetime": 8,
+          "receive": -1,
+          "send": 25
+        },
+        {
+          "ip": "localhost",
+          "port": 50008,
+          "start_delay": 0,
+          "lifetime": 9,
+          "receive": -1,
+          "send": 25
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "reply_timeout": 3,
+      "request_retries": 3,
+      "resend_head": false,
+      "requests": {
+        "seed": 2865189,
+        "num_requests": 50,
+        "prob_balance": 0.5,
+        "prob_deposit": 0.3,
+        "prob_withdrawal": 0.2,
+        "prob_transfer": 0.0
+      }
+    },
+    {
+      "reply_timeout": 3,
+      "request_retries": 3,
+      "resend_head": false,
+      "requests": [
+        {
+          "request": "deposit",
+          "bank": "Chase",
+          "account": "0001",
+          "amount": "150.00",
+          "seq_num": 0
+        },
+        {
+          "request": "deposit",
+          "bank": "Chase",
+          "account": "0020",
+          "amount": "150.00",
+          "seq_num": 1
+        },
+        {
+          "request": "balance",
+          "bank": "Chase",
+          "account": "0001",
+          "seq_num": 2
+        },
+        {
+          "request": "balance",
+          "bank": "Chase",
+          "account": "0020",
+          "seq_num": 3
+        },
+        {
+          "request": "withdrawal",
+          "bank": "Chase",
+          "account": "0001",
+          "amount": "50.00",
+          "seq_num": 4
+        },
+        {
+          "request": "withdrawal",
+          "bank": "Chase",
+          "account": "0020",
+          "amount": "250.00",
+          "seq_num": 5
+        }
+      ]
+    }
+  ]
+}

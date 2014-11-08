@@ -1,0 +1,67 @@
+{
+  "banks": {
+    "Chase": {
+      "chain": [
+        {
+          "ip": "localhost",
+          "port": 50000,
+          "start_delay": 0,
+          "lifetime": 3,
+          "receive": -1,
+          "send": -1
+        },
+        {
+          "ip": "localhost",
+          "port": 50001,
+          "start_delay": 0,
+          "lifetime": 4,
+          "receive": -1,
+          "send": -1
+        },
+        {
+          "ip": "localhost",
+          "port": 50002,
+          "start_delay": 0,
+          "lifetime": 5,
+          "receive": -1,
+          "send": -1
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "reply_timeout": 3,
+      "request_retries": 3,
+      "resend_head": false,
+      "requests": [
+        {
+          "request": "deposit",
+          "bank": "Chase",
+          "account": "0001",
+          "amount": "150.00",
+          "seq_num": 0
+        },
+        {
+          "request": "balance",
+          "bank": "Chase",
+          "account": "0001",
+          "seq_num": 1
+        },
+        {
+          "request": "withdrawal",
+          "bank": "Chase",
+          "account": "0001",
+          "amount": "50.00",
+          "seq_num": 2
+        },
+        {
+          "request": "balance",
+          "bank": "Chase",
+          "account": "0001",
+          "seq_num": 3
+        }
+      ]
+    }
+  ]
+}
