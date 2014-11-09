@@ -4,6 +4,7 @@ import re
 import sys
 import os
 
+m = import_da('master')
 c = import_da('client')
 s = import_da('server')
 const = import_da('const')
@@ -16,19 +17,23 @@ def parse_config(file_name):
         client_list = data['clients']
     return (bank_dict, client_list)
 
+
 def create_log_dir(config_file):
-    testdir = os.path.join(const.LOG_DIR, os.path.splitext(os.path.basename(config_file))[0])
+    """Create a log directory and return the relative path."""
+    testdir = os.path.join(const.LOG_DIR,
+                           os.path.splitext(os.path.basename(config_file))[0])
     p = re.compile(r'.*_(\d+)$')
     nums = []
     for file_name in glob.glob(testdir + '_[0-9]*'):
-        m = p.match(file_name)
-        if m:
-            nums.append(int(m.group(1)))
+        ma = p.match(file_name)
+        if ma:
+            nums.append(int(ma.group(1)))
     num = max(nums) + 1 if nums else 1
     logdir = testdir + '_' + str(num)
     # make log dir
     os.makedirs(logdir)
     return logdir
+
 
 def main():
     """Usage: main.da [test_file.json]
@@ -47,14 +52,17 @@ def main():
     for bank_name in bank_dict:
         config_slist = bank_dict[bank_name]['chain']
         if not config_slist:
-            print('Error: bank %s from file %s has no server config' % (bank_name, config_file))
+            print('Error: bank %s from file %s has no server config' %
+                  (bank_name, config_file))
             sys.exit(1)
-        print('Starting %s servers for %s bank' % (len(config_slist), bank_name))
+        print('Starting %s servers for %s bank' %
+              (len(config_slist), bank_name))
         servers = new(s.Server, num=len(config_slist))
         # Setup the chain for 'Chase' bank
         # TODO: setup chain here rather than hack with slist :)
         slist = list(servers)
-        for serv, serv_conf, i in zip(servers, config_slist, range(1, len(servers)+1)):
+        for serv, serv_conf, i in zip(servers, config_slist,
+                                      range(1, len(servers)+1)):
             logfile = os.path.join(logdir, '_'.join(['server', bank_name, str(i)]) + '.log')
             setup(serv, [slist, bank_name, serv_conf, logfile])
         # Save head and tail to banks dictionary

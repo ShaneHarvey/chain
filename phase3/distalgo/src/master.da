@@ -1,0 +1,102 @@
+import logging
+from collections import defaultdict
+
+const = import_da('const')
+
+
+class Master(process):
+
+    """
+    Master monitors all banks to detect failures and handle chain updates.
+
+    Master handles join chain requests, failure detection, and failure
+    notification for servers in the chain and to clients.
+    """
+
+    def setup(banks, clients, logfile):
+        """Setup the master server
+
+        heads -- a dict of  of all the clients in the simulation.
+        clients -- a set of DA ids of all the clients in the simulation.
+        logfile -- relative path of the logging file
+        """
+        # {"JP": [head, middle, tail]}
+        self.chain = defaultdict(list)
+        self.pings = defaultdict(int)
+        for name in banks:
+            self.pings[name]
+
+    def main():
+        """
+        Coordinate setup of bank chains then, monitor each chain until all
+        servers fail.
+        """
+        setup_logfile()
+        print_init_settings()
+        # Wait for join chain messages
+
+        # 
+        output("All servers have failed, terminating...")
+
+    def setup_logfile():
+        rootlog = logging.getLogger('')
+        filelvl = logging.INFO
+        fh = logging.FileHandler(logfile)
+        formatter = logging.Formatter('[%(asctime)s]%(name)s: %(message)s')
+        fh.setFormatter(formatter)
+        fh.setLevel(filelvl)
+        rootlog._filelvl = filelvl
+        rootlog.addHandler(fh)
+
+    def print_init_settings():
+        output('*** Initial settings ***')
+
+        if rand_req:
+            output('Shutting down after sending %s random messages' % num_req)
+            output('Probabilities: %s%% balance, %s%% deposit, %s%% withdrawal'\
+                    % (prob_balance, prob_deposit, prob_withdrawal))
+            output('Sending requests randomly to %s' % ' or '.join(banks.keys()))
+        else:
+            output('Shutting down after sending %s messages from config' % \
+                    len(req_list))
+        output('Timeout before resending a request is %s seconds' % reply_timeout)
+        output('Will re-send a request at most %s times' % request_retries)
+        if resend_head:
+            output('Will re-send outstanding request to new head')
+        else:
+            output('Will NOT re-send outstanding request to new head')
+        output('*** Initial settings ***')
+
+    def log_sent(message, dest):
+        num_sent += 1
+        output('\tSending message #%s: %s to=%s' % \
+            (str(num_sent), str(message), str(dest)))
+
+    def prettyprint_request(req):
+        req_type = req['request']
+        account = req['account']
+        bank_n = req['bank']
+
+        if req_type == 'balance':
+            output('Sending request: %s, get balance of account %s' % (bank_n, account))
+        else:
+            amount = req['amount']
+            output('Sending request: %s, %s $%s account %s' % \
+                (bank_n, req_type ,amount, account))
+
+    def prettyprint_reply(reply):
+        if reply:
+            outcome, acc, bal = reply
+            if outcome == const.PROCESSED:
+                output('Reply: PROCESSED request, account %s, current balance $%s\n'\
+                        % (acc, bal))
+            elif outcome == const.INCONSISTENT:
+                output('Reply: INCONSISTENT WITH HISTORY, account %s, current balance $%s\n'\
+                        % (acc, bal))
+            elif outcome == const.INSUFFICIENT_FUNDS:
+                output('Reply: INSUFFICIENT FUNDS, account %s, current balance $%s\n'\
+                        % (acc, bal))
+            else:
+                output('Unkown outcome %s, account %s, balance $%s\n' % (outcome, acc, bal))
+        else:
+            output('Request could not be processed at this time.\n')

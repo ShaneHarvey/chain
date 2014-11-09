@@ -203,12 +203,12 @@ class Server(process):
 
     def log_sent(message, dest):
         num_sent += 1
-        output('Sending message #%s: %s to=%s\n' % \
+        output('Sending message #%s: %s to=%s\n' %
             (str(num_sent), str(message), str(dest)))
 
     def log_recv(message, source):
         num_received += 1
-        output('Received message #%s: %s from=%s' % \
+        output('Received message #%s: %s from=%s' %
             (str(num_received), str(message), str(source)))
 
     def log_bank():
