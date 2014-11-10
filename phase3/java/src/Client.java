@@ -257,13 +257,37 @@ public class Client {
                 String ret = new String(recvBuffer.array());
                 retVal = parseResponse(ret, getRequestType(requests[i]),i);
                 */
-                count++;
+                //if(retVal!= 0){
+                    count++;
+                //}
                 //System.out.println(ret);
             }
             if(count>= request_retries){
                 System.out.println("Failed to send request.");
                 writeToLog("Failed to send current request. Sending next request.");
             }
+        }
+    }
+    public static void parseMasterMsg(String msg){
+        String [] parts = msg.split("#");
+        for(int i = 0; i < parts.length; i++){
+            parts[i]= parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
+            System.out.println(parts[i]);
+        }
+        //parts[1] will have bank name
+        //parts[2] will have HEAD or TAIL
+        //parts[3] will have new port number
+        BankInfo modify = bankMap.get(parts[1]);
+        if(parts[2].equals("HEAD")){
+            modify.headPort = Integer.parseInt(parts[3]);
+            System.out.println("NEW HEAD");
+            writeToLog("Recevied new head server message from master for " + parts[1] + " bank. New port number is "+ modify.headPort);
+        }
+        else if(parts[2].equals("TAIL")){
+            modify.tailPort = Integer.parseInt(parts[3]);
+            System.out.println("NEW TAIL");
+            writeToLog("Recevied new tail server message from master for " + parts[1] + " bank. New port number is "+ modify.headPort);
         }
     }
     public static int parseResponse(String response, String reqType, int requestNumber){
@@ -275,6 +299,10 @@ public class Client {
         }
         for(int i = 0; i < parts.length; i++){
             parts[i] = parts[i].replace("#", "");
+        }
+        if(parts[0].equals("MASTER")){
+            parseMasterMsg(response);
+            return 0;
         }
         int outcome = Integer.parseInt(parts[2]);
         Double bal = Double.parseDouble(parts[3]);
