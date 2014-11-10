@@ -214,6 +214,7 @@ public class Client {
                 System.out.println("Request: "+ requests[i]);
                 if(count != 0){
                     System.out.println("Message not recieved in timely manner. Retransmitting " + count + " time.");
+                    writeToLog("Message not received in timely manner. Number of times retransmit " + count);
                 }
                 else{
                     System.out.println("Sending Request the first time.");
@@ -258,6 +259,10 @@ public class Client {
                 */
                 count++;
                 //System.out.println(ret);
+            }
+            if(count>= request_retries){
+                System.out.println("Failed to send request.");
+                writeToLog("Failed to send current request. Sending next request.");
             }
         }
     }
