@@ -3,9 +3,10 @@ import logging
 
 const = import_da('const')
 
+
 class Client(process):
 
-    def setup(banks, conf, logfile):
+    def setup(master, banks, conf, logfile):
         self.replies = set()
         self.num_received = 0
         self.num_sent = 0
@@ -22,7 +23,7 @@ class Client(process):
             self.prob_balance = conf['requests']['prob_balance']
             self.prob_deposit = conf['requests']['prob_deposit']
             self.prob_withdrawal = conf['requests']['prob_withdrawal']
-            #self.prob_transfer = conf['requests']['prob_transfer']
+            # self.prob_transfer = conf['requests']['prob_transfer']
         elif isinstance(conf['requests'], list):
             self.r_index = 0
             self.req_list = conf['requests']
@@ -60,7 +61,6 @@ class Client(process):
             return send_update(request['request'], reqid, request['account'], request['amount'], request['bank'])
 
     def send_query(query, reqid, account, bank):
-        retry = 0
         for i in range(request_retries):
             tail = banks[bank]['tail']
             if not tail:
@@ -75,15 +75,10 @@ class Client(process):
                 return (outcome, acc, bal)
             elif timeout(reply_timeout):
                 output('Request timed out after %s seconds' % reply_timeout)
-                retry += 1
-                if retry > request_retries:
-                    output('Giving up after sending request %s times' % retry)
-                    return None
-                else:
-                    output('Resending request')
+        output('Giving up after sending request %s times' % request_retries)
+        return None
 
     def send_update(update, reqid, account, amount, bank):
-        retry = 0
         for i in range(request_retries):
             head = banks[bank]['head']
             if not head:
@@ -98,12 +93,8 @@ class Client(process):
                 return (outcome, acc, bal)
             elif timeout(reply_timeout):
                 output('Request timed out after %s seconds' % reply_timeout)
-                retry += 1
-                if retry > request_retries:
-                    output('Giving up after sending request %s times' % retry)
-                    return None
-                else:
-                    output('Resending request')
+        output('Giving up after sending request %s times' % request_retries)
+        return None
 
     def gen_reqid(account, seq_num=None):
         """

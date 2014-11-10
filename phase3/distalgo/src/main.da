@@ -46,6 +46,9 @@ def main():
     if not client_list:
         print('Error: empty client list from file %s' % config_file)
         sys.exit(1)
+    master = new(m.Master, num=1)
+    all_chains = dict()
+    all_servers = set()
     # init bank object which is passed to each client
     banks = dict()
     # First setup the server chain for each bank
@@ -55,25 +58,52 @@ def main():
             print('Error: bank %s from file %s has no server config' %
                   (bank_name, config_file))
             sys.exit(1)
-        print('Starting %s servers for %s bank' %
+        print('Creating %s servers for %s bank' %
               (len(config_slist), bank_name))
         servers = new(s.Server, num=len(config_slist))
-        # Setup the chain for 'Chase' bank
-        # TODO: setup chain here rather than hack with slist :)
-        slist = list(servers)
-        for serv, serv_conf, i in zip(servers, config_slist,
-                                      range(1, len(servers)+1)):
-            logfile = os.path.join(logdir, '_'.join(['server', bank_name, str(i)]) + '.log')
-            setup(serv, [slist, bank_name, serv_conf, logfile])
+        for each_s in servers:
+            all_servers.add(each_s)
+        # Setup the chain for a single bank
+        no_delays = [c for c in config_slist if c['start_delay'] == 0]
+        if not no_delays:
+            print('Error: bank %s: at least one server must have 0 delay!' %
+                  bank_name)
+            sys.exit(1)
+        delays = [c for c in config_slist if c['start_delay'] != 0]
+
+        init_chain = [servers.pop() for i in range(len(no_delays))]
+        all_chains[bank_name] = init_chain
+        logid = 1
+        pred = None
+        for serv, serv_conf in zip(init_chain, no_delays):
+            logname = '_'.join(['server', bank_name, str(logid)]) + '.log'
+            logfile = os.path.join(logdir, logname)
+            # Determine next server in the chain
+            succ = init_chain[logid] if logid < len(init_chain) else None
+            setup(serv, [master, pred, succ, bank_name, serv_conf, logfile])
+            pred = serv
+            logid += 1
         # Save head and tail to banks dictionary
-        banks[bank_name] = {'head': slist[0], 'tail': slist[-1]}
-        start(servers)
+        banks[bank_name] = {'head': init_chain[0], 'tail': init_chain[-1]}
+        # setup the delayed servers
+        for serv, serv_conf in zip(delays, servers):
+            logname = '_'.join(['server', bank_name, str(logid)]) + '.log'
+            logfile = os.path.join(logdir, logname)
+            setup(serv, [master, None, None, bank_name, serv_conf, logfile])
+            logid += 1
 
     # Now setup the clients
     clients = new(c.Client, num=len(client_list))
-    for cli, cli_conf, i in zip(clients, client_list, range(1, len(client_list)+1)):
-        logfile = os.path.join(logdir, 'client_' + str(i) + '.log')
+    logid = 1
+    for cli, cli_conf in zip(clients, client_list):
+        logfile = os.path.join(logdir, 'client_' + str(logid) + '.log')
         # pass bank["Chase"] : {head: head_s, tail: tail_s}
-        setup(cli, [banks, cli_conf, logfile])
+        setup(cli, [master, banks, cli_conf, logfile])
+        logid += 1
 
+    # Now setup master with intitial servers and clients
+    setup(master, [all_chains, clients, os.path.join(logdir, 'master.log')])
+
+    start(all_servers)
+    start(master)
     start(clients)

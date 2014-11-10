@@ -1,38 +1,33 @@
+import logging
 # Used as a 'bank'
 from collections import defaultdict
 # Decimal is used to store monetary values precisely
 from decimal import Decimal
-import logging
+from time import sleep
 
 const = import_da('const')
 
 
 class Server(process):
 
-    def setup(servers, bank_name, conf, logfile):
-        # TODO: Remove servers and setup_chain(servers)
-        # TODO: add predecessor, successor to setup args
-        self.predecessor = None
-        self.successor = None
-        self.is_head = True
-        self.is_tail = True
-        #self.processed_updates
+    def setup(master, predecessor, successor, bank_name, conf, logfile):
+        self.is_head = not predecessor
+        self.is_tail = not successor
+        # self.processed_updates
         self.updates = dict()
         self.bank = defaultdict(int)
         self.lifetime = conf['lifetime']
         self.recv_limit = conf['receive']
         self.send_limit = conf['send']
+        self.delay = conf['start_delay']
         self.num_received = 0
         self.num_sent = 0
-        setup_chain(servers)
-
-    def setup_chain(servers):
-        slen = len(servers)
-        i = servers.index(self.id)
-        if i < slen - 1:
-            set_successor(servers[i + 1])
-        if i > 0:
-            set_predecessor(servers[i - 1])
+        # If the server is delayed then it is a special case
+        if self.delay != 0:
+            self.is_head = False
+            self.is_tail = False
+            predecessor = None
+            successor = None
 
     def set_predecessor(new_pred):
         predecessor = new_pred
@@ -81,6 +76,12 @@ class Server(process):
     def main():
         setup_logfile()
         print_init_settings()
+
+        if delay != 0:
+            output('Sleeping for %s seconds.' % delay)
+            sleep(delay)
+            join_chain()
+
         if lifetime >= 0:
             # wait t seconds, until we send s messages, or receive r messages
             if await(len(listof(mesg, received(mesg))) == recv_limit):
@@ -98,6 +99,10 @@ class Server(process):
         # Print the bank state!
         log_bank()
         output("Terminating..")
+
+    def join_chain():
+        """Send joinChain request to master."""
+        pass
 
     def receive(msg=('balance', (reqid, account)), from_=client):
         this_msg = ('balance', (reqid, account))

@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 
 const = import_da('const')
 
@@ -14,17 +13,16 @@ class Master(process):
     """
 
     def setup(banks, clients, logfile):
-        """Setup the master server
+        """Setup the master server.
 
         heads -- a dict of  of all the clients in the simulation.
         clients -- a set of DA ids of all the clients in the simulation.
         logfile -- relative path of the logging file
         """
-        # {"JP": [head, middle, tail]}
-        self.chain = defaultdict(list)
-        self.pings = defaultdict(int)
-        for name in banks:
-            self.pings[name]
+        # {"JP": [JPServer], "Chase": [ChaseServer]}
+        self.chain = dict()
+        for bank in banks:
+            self.chain[bank] = [Server(bank, s) for s in banks[bank]]
 
     def main():
         """
@@ -34,9 +32,33 @@ class Master(process):
         setup_logfile()
         print_init_settings()
         # Wait for join chain messages
-
-        # 
+        # await
         output("All servers have failed, terminating...")
+
+    def receive(msg=('ping', bankname), from_=server):
+        """Update the ping count of the server."""
+        output('Received ping: bank=%s, server=%s' % (bankname, server))
+        if bankname in chain:
+            for serv in chain[bankname]:
+                if serv.pid == server:
+                    serv.pings += 1
+                    break
+
+    def receive(msg=('joinChain', bankname), from_=new_tail):
+        output('Received joinChain: bank=%s, server=%s' % (bankname, new_tail))
+        tail = tail(bankname)
+        if tail:
+            mesg = ('extendChain', new_tail)
+            output('Sending extendChain to current tail=%s' % tail)
+            send(mesg, to=tail)
+        else:
+            output('Bank %s does not have a server chain!' % bankname)
+
+    def receive(msg=('newTail', bankname), from_=new_tail):
+        output('Received newTail: bank=%s, new tail=%s' % (bankname, new_tail))
+        mesg = ('updateTail', (bankname, new_tail))
+        output('Sending updateTail to all clients')
+        send(mesg, to=clients)
 
     def setup_logfile():
         rootlog = logging.getLogger('')
@@ -50,53 +72,21 @@ class Master(process):
 
     def print_init_settings():
         output('*** Initial settings ***')
-
-        if rand_req:
-            output('Shutting down after sending %s random messages' % num_req)
-            output('Probabilities: %s%% balance, %s%% deposit, %s%% withdrawal'\
-                    % (prob_balance, prob_deposit, prob_withdrawal))
-            output('Sending requests randomly to %s' % ' or '.join(banks.keys()))
-        else:
-            output('Shutting down after sending %s messages from config' % \
-                    len(req_list))
-        output('Timeout before resending a request is %s seconds' % reply_timeout)
-        output('Will re-send a request at most %s times' % request_retries)
-        if resend_head:
-            output('Will re-send outstanding request to new head')
-        else:
-            output('Will NOT re-send outstanding request to new head')
         output('*** Initial settings ***')
 
-    def log_sent(message, dest):
-        num_sent += 1
-        output('\tSending message #%s: %s to=%s' % \
-            (str(num_sent), str(message), str(dest)))
-
-    def prettyprint_request(req):
-        req_type = req['request']
-        account = req['account']
-        bank_n = req['bank']
-
-        if req_type == 'balance':
-            output('Sending request: %s, get balance of account %s' % (bank_n, account))
+    def tail(bankid):
+        """Find and return the tail of a bank's chain."""
+        if bankid in chain and chain[bankid]:
+            return chain[bankid][-1]
         else:
-            amount = req['amount']
-            output('Sending request: %s, %s $%s account %s' % \
-                (bank_n, req_type ,amount, account))
+            return None
 
-    def prettyprint_reply(reply):
-        if reply:
-            outcome, acc, bal = reply
-            if outcome == const.PROCESSED:
-                output('Reply: PROCESSED request, account %s, current balance $%s\n'\
-                        % (acc, bal))
-            elif outcome == const.INCONSISTENT:
-                output('Reply: INCONSISTENT WITH HISTORY, account %s, current balance $%s\n'\
-                        % (acc, bal))
-            elif outcome == const.INSUFFICIENT_FUNDS:
-                output('Reply: INSUFFICIENT FUNDS, account %s, current balance $%s\n'\
-                        % (acc, bal))
-            else:
-                output('Unkown outcome %s, account %s, balance $%s\n' % (outcome, acc, bal))
-        else:
-            output('Request could not be processed at this time.\n')
+
+class Server:
+
+    """Contains info about a bank server in a chain."""
+
+    def __init__(self, bank, pid):
+        self.bank = bank
+        self.pid = pid
+        self.pings = 0
