@@ -348,7 +348,7 @@ public class ExecSimulation {
                      
                     }
                     Thread.sleep(500);
-                    //System.out.println(execCommand);
+                    System.out.println(execCommand);
                     System.out.println("Client " + (i+1) + " started" );
                     Process cliPro = Runtime.getRuntime().exec(execCommand);
                     clientPros.add(cliPro);

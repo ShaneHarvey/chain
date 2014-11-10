@@ -152,14 +152,14 @@ public class Master implements Runnable{
     }
     public static void listen() throws SocketException, IOException{
         DatagramChannel channel = DatagramChannel.open();
-        channel.socket().bind(new InetSocketAddress(49999));
+        channel.socket().bind(new InetSocketAddress(myPort));
 
         while (true) {
             ByteBuffer buf = ByteBuffer.allocate(1000);
             channel.receive(buf);
             String read_in = new String(buf.array());
             parseMessage(read_in);
-            //System.out.println("Read message on Socket: "+ read_in);   
+            System.out.println("Read message on Socket: "+ read_in);   
         }
     }
     @Override
