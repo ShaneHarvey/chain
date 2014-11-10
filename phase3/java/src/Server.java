@@ -1,3 +1,14 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -12,9 +23,11 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 class ReqObject{
@@ -89,6 +102,7 @@ public class Server implements Runnable{
     private static DatagramChannel datagramChannel;
     public static String pound = "\n\n############################################################\n\n";
     public static HashMap<String, ReqObject> history;
+    public static HashMap<Integer, String> sent;
     private static int start_delay;
     private static int lifetime;
     private static int receive;
@@ -172,7 +186,90 @@ public class Server implements Runnable{
                 break;
         }
     }
-
+    public static void parseMasterRequest(String req){
+        System.out.println("In Master parsing method");
+        String [] parts = req.split("#");
+        for(int i = 0; i < parts.length ; i++){
+            parts[i] = parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
+        }
+        if(parts[1].equals("NEWSUCC")){
+            System.out.println("New successor");
+            sServerPort = Integer.parseInt(parts[2]);
+            try {
+                successorSock.close();
+                successorSock.connect(new InetSocketAddress(sServerIP,sServerPort ));
+            } catch (IOException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            System.out.println("Successfully relinked to successor");
+        }
+        else if(parts[1].equals("NEWPRED")){
+            System.out.println("New predecessor");
+            pServerPort = Integer.parseInt(parts[2]);
+            try {
+                predecessorSock.close();
+                predecessorSock.connect(new InetSocketAddress(pServerIP,pServerPort ));
+            } catch (IOException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            System.out.println("Successfully relinked to predecessor");
+        }
+        else if(parts[1].equals("SERVSTATUS")){
+            //writeToLog();
+            System.out.println("New server position");
+            myPosition = ServerStatus.valueOf(parts[1]);
+            System.out.println(myPosition.toString());
+        }
+        else{
+            
+        }
+        return;
+    }
+    public static void processAck(int ACK){
+        if(myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
+            return;
+        }
+        System.out.println(sent.size());
+        Iterator<Map.Entry<Integer, String>> entries = sent.entrySet().iterator();
+        ArrayList<Integer> toRemove = new ArrayList<Integer>();
+        while (entries.hasNext()) {
+            Map.Entry<Integer, String> entry = entries.next();
+            if(entry.getKey()<= ACK){
+                System.out.println("Removed ACK " + entry.getKey());
+                toRemove.add(entry.getKey());
+                //sent.remove(entry.getKey());
+            }
+            //writeToLog(entry.getValue().printBankChain());
+        }
+        for(int i = 0; i< toRemove.size(); i++){
+            sent.remove(toRemove.get(i));
+        }
+        System.out.println(sent.size());
+        if(myPosition!= ServerStatus.HEAD && myPosition!= ServerStatus.HEAD_TAIL){
+            try {
+                String toSend = "ACK#"+ACK;
+                ByteBuffer buf = ByteBuffer.allocate(1000);
+                buf.clear();
+                buf.put(toSend.getBytes());
+                buf.flip();
+                //if (predecessorSock == null) {
+                    predecessorSock = SocketChannel.open();
+                    predecessorSock.connect(new InetSocketAddress("localhost", pServerPort));
+                    System.out.println("Connection to successor established");
+                //}
+                while (buf.hasRemaining()) {
+                    predecessorSock.write(buf);
+                }
+                
+                //predecessorSock.close();
+                //predecessorSock.write(buf);
+            } catch (IOException ex) {
+                System.out.println("Acking to predecessor failed.");
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+    }
     /**
      * This function will parse the message recieved from the Sockets
      *
@@ -182,17 +279,33 @@ public class Server implements Runnable{
      * withdrawal#clientIPPORT%bank_name%accountnum%seq#amount
      * balance#clientIPPORT%bank_name%accountnum%seq
      */
-    private static void parseRequest(String req, MessagesEnum m) {
-        System.out.println(req);
+    private static int parseRequest(String req, MessagesEnum m) {
+        System.out.println("request:" + req);
         String response = "reply#";
         String[] parts = req.split("#");
+        if(parts.length<=1){
+            System.out.println("ASS");
+            return -1;
+        }
         for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].replace("#", "");
         }
-        response += parts[1] + "#";
+        
         if(parts[0].equals(B) && m == MessagesEnum.SOCKCHANNELREAD){
             System.out.println("HACK");
-            return;
+            return 0;
+        }
+        if(parts[0].equals("MASTER")){
+            System.out.println("Master Message");
+            parseMasterRequest(req);
+            return -1;
+        }
+        response += parts[1] + "#";
+        if(parts[0].equals("ACK")){
+            System.out.println("ACK received");
+            parts[1] = parts[1].trim();
+            processAck(Integer.parseInt(parts[1]));
+            return -1;
         }
         String[] rid = parts[1].split("%");
         for (int i = 0; i < rid.length; i++) {
@@ -207,6 +320,38 @@ public class Server implements Runnable{
         else{
             System.out.println("rid " + rid[2]);
             msgrecv = parts[0] + " request on account number " + rid[2] + " for the amount " + Double.parseDouble(parts[2]) +". From client "+rid[0]+".";
+            if(myPosition != ServerStatus.TAIL && myPosition!= ServerStatus.HEAD_TAIL){
+                System.out.println("Put into sent SEQ = " + parts[3]);
+                parts[3] = parts[3].trim();
+                sent.put(Integer.parseInt(parts[3]), req);
+            }
+            else if(myPosition == ServerStatus.TAIL){
+                try {
+                    String toSend = "ACK#"+parts[3];
+                    System.out.println("Sending ACK " + toSend);
+                    ByteBuffer buf = ByteBuffer.allocate(1000);
+                    buf.clear();
+                    buf.put(toSend.getBytes());
+                    buf.flip();
+                    System.out.println("Testing" + buf.asCharBuffer().toString());
+                    //if (predecessorSock == null) {
+                        predecessorSock = SocketChannel.open();
+                        predecessorSock.connect(new InetSocketAddress("localhost", pServerPort));
+                        System.out.println("Connection to successor established");
+                    //}
+                    while (buf.hasRemaining()) {
+                        predecessorSock.write(buf);
+                    }
+                    //predecessorSock.close();
+                } catch (IOException ex) {
+                    System.out.println("Tail didnt successfull send ACK on update request.");
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+            else{
+                //Do nothing if head 
+                System.out.println("DO NOTHING");
+            }
         }
         
         MsgRecieved(m, msgrecv);
@@ -247,6 +392,7 @@ public class Server implements Runnable{
                     int c_port = Integer.parseInt(host_port[1]);
                     try {
                         int byteSent = datagramChannel.send(sendBuf, new InetSocketAddress(host_port[0],c_port));
+                        //messagesS++;
                     } catch (IOException ex) {
                         System.out.println("FAILED to send response to client.");
                         Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
@@ -256,7 +402,7 @@ public class Server implements Runnable{
                     MsgSent(MessagesEnum.FWDTOSUCCESSOR, msgrecv);
                 }
                 System.out.println(response);
-                return;
+                return 0;
             }
             
         }catch(NullPointerException e){
@@ -270,7 +416,7 @@ public class Server implements Runnable{
         String account_num= null;
         int seq_num;
         Double amount = 0.0;
-        if (parts.length == 3 && parts[2] != null) {
+        if (parts.length >=3 && parts[2] != null) {
             System.out.println(parts[2]);
             amount = Double.parseDouble(parts[2]);
         }
@@ -305,6 +451,7 @@ public class Server implements Runnable{
         }
         ReqObject insert = new ReqObject(parts[1], account_num, parts[0], amount, ReqObject.Outcome.Processed, ret, response);
         history.put(parts[1], insert);
+        
         if(myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
             MsgSent(MessagesEnum.REPLYTOCLI, msgrecv);
             ByteBuffer sendBuf = ByteBuffer.allocate(MAXBUFFER);
@@ -317,6 +464,7 @@ public class Server implements Runnable{
             int c_port = Integer.parseInt(host_port[1]);
             try {
                 int byteSent = datagramChannel.send(sendBuf, new InetSocketAddress(host_port[0],c_port));
+                //messagesS++;
             } catch (IOException ex) {
                 System.out.println("FAILED to send response to client.");
                 Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
@@ -329,6 +477,7 @@ public class Server implements Runnable{
         }
         System.out.println(response);
         // TODO HANDLE ACKING LATER
+        return 0;
     }
 
     private static Double getBalance(String accountNum) {
@@ -399,6 +548,7 @@ public class Server implements Runnable{
         try {
             //String fname = "./Server_" +myPort + ".log";
             String fname="../logs/"+bankName+"_Server_" +myPort + ".log";
+            //String fname=bankName+"_Server_" +myPort + ".log";
             logFile = new File(fname);
             if (!logFile.exists()) {
                 logFile.createNewFile();
@@ -407,6 +557,7 @@ public class Server implements Runnable{
             writeToLog(pound + today + pound);
             writeToLog(new Date() +": "+ myPosition.toString() + " Server in the chain. My IP:Port : " + myIP +":"+ myPort + ". Start delay " + start_delay + ", lifetime " +lifetime + ", receive " + receive + " messages maximum, send " + send + " messages max.");
         } catch (IOException e)  {
+            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, e);
             System.out.println("Error creating log file. Exiting Program");
             System.exit(0);
         }
@@ -454,7 +605,6 @@ public class Server implements Runnable{
         }
     }
     private static void socketInit() throws IOException {
-        
         mySock = ServerSocketChannel.open();
         ServerSocket serverSocket = mySock.socket();
         Selector selector = Selector.open();
@@ -463,20 +613,21 @@ public class Server implements Runnable{
         mySock.register(selector, SelectionKey.OP_ACCEPT);
         
         //If the server is a HEAD or Tail server start the Datagram channel for the clients to talk on
-        if(myPosition == ServerStatus.HEAD || myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
+       // if(myPosition == ServerStatus.HEAD || myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
             System.out.println("Setup Datagram socket.");
             datagramChannel = DatagramChannel.open();
             datagramChannel.configureBlocking(false);
             datagramChannel.socket().bind(new InetSocketAddress(myPort));
             datagramChannel.register(selector, SelectionKey.OP_READ);
-        }
+            (new Thread(new Server())).start();
+        //}
         //If the server is a MIDDLE server or a tail server then connect to the Predecessor Server
         if(myPosition == ServerStatus.MIDDLE || myPosition == ServerStatus.TAIL){
             
             predecessorSock = SocketChannel.open();
             predecessorSock.configureBlocking(false);
             predecessorSock.connect(new InetSocketAddress(pServerIP,pServerPort));
-            predecessorSock.register(selector, SelectionKey.OP_READ);
+            predecessorSock.register(selector,SelectionKey.OP_CONNECT);
             System.out.println("SENT Message to Predecessor");
         }
         /*if(myPosition != ServerStatus.TAIL){
@@ -544,18 +695,31 @@ public class Server implements Runnable{
                             buf.clear();
                             buf.flip();
                             buf.clear();
-                            parseRequest(ret, MessagesEnum.SOCKCHANNELREAD);
+                            int pReqRet = parseRequest(ret, MessagesEnum.SOCKCHANNELREAD);
                             System.out.println("bytes read: " + bytesRead + " " + ret);
+                            if(pReqRet == -1){
+                                System.out.println("ACK or Master message");
+                                continue;
+                            }
                             if (myPosition == ServerStatus.HEAD || myPosition == ServerStatus.MIDDLE) {
+                                if(myPosition == ServerStatus.HEAD){
+                                    System.out.println("Sock Ch Request: "+ret);
+                                    ret+="#"+messagesS;
+                                    ret = ret.trim();
+                                    System.out.println("Sock Ch Request: "+ ret);
+                                }
                                 System.out.println(sServerPort);
                                 if (successorSock == null) {
                                     successorSock = SocketChannel.open();
                                     successorSock.connect(new InetSocketAddress("localhost", sServerPort));
                                     System.out.println("Connection to successor established");
                                 }
+                                messagesS++;
+                                sent.put(messagesS, ret);
                                 while (buf.hasRemaining()) {
                                     successorSock.write(buf);
                                 };
+                                
                                 System.out.println("Sent to successor");
                             }
 
@@ -572,19 +736,31 @@ public class Server implements Runnable{
                         ch.receive(buf);
                         String ret = new String(buf.array());
                         System.out.println("Data: " + ret);
+                        if(myPosition == ServerStatus.HEAD){
+                            ret = ret.trim();
+                            System.out.println("Datagram Ch Request: "+ret);
+                            ret= ret + "#"+messagesS;
+                            //ret = ret.trim();
+                            System.out.println("Datagram Ch Request: "+ ret);
+                        }
                         parseRequest(ret, MessagesEnum.DATACHANNELREAD);
                         buf.flip();
 
                         if(myPosition != ServerStatus.TAIL && myPosition != ServerStatus.HEAD_TAIL){
+                            
                             System.out.println("Inside the resending to successor " +sServerPort);
                             if(successorSock == null){
                                 successorSock = SocketChannel.open();
                                 successorSock.connect(new InetSocketAddress("localhost",sServerPort ));
                                 System.out.println("Connection to successor established");
                             }
+                            buf.clear();
+                            buf.put(ret.getBytes());
+                            buf.flip();
                             while(buf.hasRemaining()){
                                 successorSock.write(buf);
                             };
+                            //messagesS++;
                             System.out.println("Sent to successor"); 
                         }
                         
@@ -605,25 +781,19 @@ public class Server implements Runnable{
     @Override
     public void run() {
         try {
-            datagramChannel = DatagramChannel.open();
-            datagramChannel.configureBlocking(false);
-            //datagramChannel.socket().bind(new InetSocketAddress(myPort));
-            //int i = 0, calc;//for testig purposes
+            //datagramChannel = DatagramChannel.open();
+           // datagramChannel.configureBlocking(false);
+           // datagramChannel.socket().bind(new InetSocketAddress(myPort));
             while(true){
-                
-                if(myPort == 0){
-                    myPort = 50000;
-                }
+                Thread.sleep(1000);
                 String newData = "PING#"+bankName+":"+myPort;
                 ByteBuffer buf = ByteBuffer.allocate(48);
                 buf.clear();
                 buf.put(newData.getBytes());
                 buf.flip();
 
-                int bytesSent = datagramChannel.send(buf, new InetSocketAddress("localhost", 49999));
-                //calc = i * 1000;
-                Thread.sleep(1000);
-                //i++;
+                int bytesSent = datagramChannel.send(buf, new InetSocketAddress("localhost", masterPort));
+                System.out.println("Ping Sent.");
             }
         } catch (IOException ex) {
             Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
@@ -640,33 +810,42 @@ public class Server implements Runnable{
      * Successor etc
      */
     public static void main(String[] args) {
-        (new Thread(new Server())).start();
-        bank = new HashMap<String, Double>();
-        history = new HashMap<String, ReqObject>();
         parseArgs(args);
         createFile();
-        try {
+        bank = new HashMap<String, Double>();
+        history = new HashMap<String, ReqObject>();
+        sent = new HashMap<Integer, String>();
+        
+        //(new Thread(new Server())).start();
+        
+        try{
             socketInit();
         } catch (IOException ex) {
             Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
         }
-
-        /*System.out.println("Success");
+        
+        /*sent.put(1, "asdf");
+        sent.put(2, "asdf2");
+        
+        sent.put(3, "asdf2");
+        sent.put(4, "asdf2");
+        parseRequest("withdrawal#localhost:60000%Chase%0001%2#50.00#5", MessagesEnum.FWDTOSUCCESSOR);
+        processAck(3);
+        System.out.println("Success");
         String depositTest = "deposit#127.0.0.1:5000%Chase%1%1#100.00";
         String depositTest2 = "deposit#127.0.0.1:5000%Chase%1%1#200.00";
         String withTest = "withdrawal#127.0.0.1:5000%Chase%1%1#50.00";
         String queryTest = "balance#127.0.0.1:5000%Chase1%1%1";
         String withTest2 = "withdrawal#127.0.0.1:5000%Chase%1%1#200.00";
-        //parseRequest(depositTest, MessagesEnum.DATACHANNELREAD);
+        parseRequest(depositTest, MessagesEnum.DATACHANNELREAD);
         //parseRequest(depositTest2, MessagesEnum.DATACHANNELREAD);
-        */
         //parseRequest(withTest);
         //parseRequest(queryTest,MessagesEnum.DATACHANNELREAD);
         //parseRequest(queryTest, MessagesEnum.SOCKCHANNELREAD);
         
         //parseRequest(depositTest);
         //parseRequest(withTest2);
-        System.out.println("Success2");
+        //System.out.println("Success2");
         
         /*   deposit#clientIPPORT%bank_name%accountnum%seq#amount
          *     withdrawal#clientIPPORT%bank_name%accountnum%seq#amount
@@ -674,3 +853,4 @@ public class Server implements Runnable{
          */
     }
 }
+
