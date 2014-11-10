@@ -6,8 +6,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -45,6 +48,7 @@ public class Client {
     private static HashMap<String, BankInfo> bankMap = new HashMap<String, BankInfo>();
     private static String[] requests;
     private static File logFile;
+    private static long timeout;//= 10000; //timeout ms
     /**
      * Parse the command line arguments passed to the client program
      * @param args 
@@ -180,10 +184,13 @@ public class Client {
         return req;
     }
     private static void sendRequests() throws IOException{
-       
+        timeout = 1000*rely_timeout;
         DatagramChannel channel = DatagramChannel.open();
         channel.socket().bind(new InetSocketAddress(myPort));
         for(int i = 0; i < requests.length ; i ++ ){
+            Selector selector = Selector.open();
+            channel.configureBlocking(false);
+            channel.register(selector, SelectionKey.OP_READ);
             ByteBuffer sendbuf = ByteBuffer.allocate(MAXBUFFER);
             sendbuf.clear();
             sendbuf.put(requests[i].getBytes());
@@ -201,32 +208,66 @@ public class Client {
                 host = b.tailIP;
                 port = b.tailPort;
             }
-            int bytesSent = channel.send(sendbuf, new InetSocketAddress(host, port));
-            /*String rtype = getRequestType(requests[i]);
-            String accountNum = getAccount(requests[i]);
-            String amt = getAmount(requests[i]);*/
-            if(r == RequestType.HEAD){
-                writeToLog(getRequestType(requests[i])+ " request for the amount of $"
-                        +getAmount(requests[i])+" on account number "+ getAccount(requests[i]) 
-                        +" sent to head of "+bank+" at host "+ host + " and port "+ port +". Request number " + i );
+            int retVal = 0;
+            int count = 0;
+            while(retVal != 1 && count < request_retries){
+                System.out.println("Request: "+ requests[i]);
+                if(count != 0){
+                    System.out.println("Message not recieved in timely manner. Retransmitting " + count + " time.");
+                }
+                else{
+                    System.out.println("Sending Request the first time.");
+                }
+                
+                int bytesSent = channel.send(sendbuf, new InetSocketAddress(host, port));
+                int n = selector.select(timeout);
+                /*String rtype = getRequestType(requests[i]);
+                String accountNum = getAccount(requests[i]);
+                String amt = getAmount(requests[i]);*/
+                if(r == RequestType.HEAD){
+                    writeToLog(getRequestType(requests[i])+ " request for the amount of $"
+                            +getAmount(requests[i])+" on account number "+ getAccount(requests[i]) 
+                            +" sent to head of "+bank+" at host "+ host + " and port "+ port +". Request number " + i );
+                }
+                else{
+                    writeToLog(getRequestType(requests[i])+ " request on account number "
+                            + getAccount(requests[i]) 
+                            +" sent to tail of "+bank+" at host "+ host + " and port "+ port +". Request number " + i);
+                }
+                Iterator it = selector.selectedKeys().iterator();
+                while (it.hasNext()) {
+                    SelectionKey key = (SelectionKey) it.next();
+                    if (key.isReadable()) {
+                        System.out.println("READABLE");
+                        ByteBuffer recvBuffer = ByteBuffer.allocate(MAXBUFFER);
+                        recvBuffer.clear();
+
+                        channel.receive(recvBuffer);
+                        String ret = new String(recvBuffer.array());
+                        retVal = parseResponse(ret, getRequestType(requests[i]),i);
+                        System.out.println(ret);
+                    }
+                }    
+                //System.out.println(requests[i]);
+                /*ByteBuffer recvBuffer = ByteBuffer.allocate(MAXBUFFER);
+                recvBuffer.clear();
+
+                channel.receive(recvBuffer);
+                String ret = new String(recvBuffer.array());
+                retVal = parseResponse(ret, getRequestType(requests[i]),i);
+                */
+                count++;
+                //System.out.println(ret);
             }
-            else{
-                writeToLog(getRequestType(requests[i])+ " request on account number "
-                        + getAccount(requests[i]) 
-                        +" sent to tail of "+bank+" at host "+ host + " and port "+ port +". Request number " + i);
-            }
-            System.out.println(requests[i]);
-            ByteBuffer recvBuffer = ByteBuffer.allocate(MAXBUFFER);
-            recvBuffer.clear();
-            channel.receive(recvBuffer);
-            String ret = new String(recvBuffer.array());
-            parseResponse(ret, getRequestType(requests[i]),i);
-            
-            System.out.println(ret);
         }
     }
-    public static void parseResponse(String response, String reqType, int requestNumber){
+    public static int parseResponse(String response, String reqType, int requestNumber){
+       //System.out.println("Response: " + response);
+
         String [] parts = response.split("#");
+        if(parts.length <=1){
+            return 0;
+        }
         for(int i = 0; i < parts.length; i++){
             parts[i] = parts[i].replace("#", "");
         }
@@ -246,6 +287,7 @@ public class Client {
                    reqType + "request. The current balance is $" + bal
                    +". Response to request number " + requestNumber); 
         }
+        return 1;
     }
     public static void main (String [] args) throws IOException{
         parseArgs(args);
