@@ -259,6 +259,7 @@ public class Master implements Runnable{
         buf.flip();
         for(int i = 0; i  < clients.size(); i++){
             try {
+                System.out.println("New Head sent to port " +clients.get(i));
                 int bytesSent = channel.send(buf, new InetSocketAddress("localhost", clients.get(i)));
             } catch (IOException ex) {
                 System.out.println("Failed to send client new Tail message on port "+ clients.get(i));
@@ -275,6 +276,7 @@ public class Master implements Runnable{
         buf.flip();
         for(int i = 0; i  < clients.size(); i++){
             try {
+                System.out.println("New Head sent to port " +clients.get(i));
                 int bytesSent = channel.send(buf, new InetSocketAddress("localhost", clients.get(i)));
             } catch (IOException ex) {
                 System.out.println("Failed to send client new Tail message on port "+ clients.get(i));

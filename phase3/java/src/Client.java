@@ -11,6 +11,7 @@ import java.nio.channels.Selector;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Random;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -49,6 +50,7 @@ public class Client {
     private static String[] requests;
     private static File logFile;
     private static long timeout;//= 10000; //timeout ms
+    private static double dropRate;
     /**
      * Parse the command line arguments passed to the client program
      * @param args 
@@ -220,8 +222,21 @@ public class Client {
                     System.out.println("Sending Request the first time.");
                 }
                 
-                int bytesSent = channel.send(sendbuf, new InetSocketAddress(host, port));
+                double random = new Random().nextDouble();
+                double result = 0.0 + (random * (1.0 - 0.0));
+                
+                int bytesSent;
+                System.out.println("DropRate " + dropRate + ", random " + result);
+                if(result > dropRate){
+                    bytesSent= channel.send(sendbuf, new InetSocketAddress(host, port));
+                }
+                else{
+                    System.out.println("Message drop simulated. Not sending message.");
+                    writeToLog("Message drop simulated. Not sending message.");
+                }
+                
                 int n = selector.select(timeout);
+                
                 /*String rtype = getRequestType(requests[i]);
                 String accountNum = getAccount(requests[i]);
                 String amt = getAmount(requests[i]);*/
@@ -266,6 +281,20 @@ public class Client {
                 System.out.println("Failed to send request.");
                 writeToLog("Failed to send current request. Sending next request.");
             }
+        }
+        int i =0;
+        while(true){
+            ByteBuffer recvBuffer = ByteBuffer.allocate(MAXBUFFER);
+            recvBuffer.clear();
+
+            channel.receive(recvBuffer);
+            String ret = new String(recvBuffer.array());
+            parseResponse(ret, "MASTER", 0);
+            ret = ret.trim();
+            if(ret.length() > 0){
+                System.out.println(ret);    
+            }
+            //i++;
         }
     }
     public static void parseMasterMsg(String msg){
@@ -323,13 +352,16 @@ public class Client {
         return 1;
     }
     public static void main (String [] args) throws IOException{
+        double random = new Random().nextDouble();
+        dropRate = 0.0 + (random * (1.0 - 0.0));
+        
         parseArgs(args);
         createFile();
         sendRequests();
-        System.out.println(requests[0]);
-        System.out.println(getBank(requests[0]));
-        System.out.println(getRequestDest(requests[0]));
+        //System.out.println(requests[0]);
+        //System.out.println(getBank(requests[0]));
+        //System.out.println(getRequestDest(requests[0]));
         
-        System.out.println("Herer");
+        //System.out.println("Herer");
     }
 }
