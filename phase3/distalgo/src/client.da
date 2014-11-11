@@ -46,6 +46,16 @@ class Client(process):
             req = get_request()
         output("No more requests to send, terminating...")
 
+    def receive(msg=('updateHead', (bank, pid)), from_=m):
+        if m == master and bank in banks:
+            output('Updating head of bank=%s to server=%s' % (bank, pid))
+            banks[bank]['head'] = pid
+
+    def receive(msg=('updateTail', (bank, pid)), from_=m):
+        if m == master and bank in banks:
+            output('Updating tail of bank=%s to server=%s' % (bank, pid))
+            banks[bank]['tail'] = tail
+
     def receive(msg=('reply', (reqid, outcome, acc, bal)), from_=tail):
         replies.add((reqid, outcome, acc, bal))
         # LOG
