@@ -1,14 +1,4 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -186,7 +176,7 @@ public class Server implements Runnable{
                 break;
         }
     }
-    public static void parseMasterRequest(String req){
+    public static void parseMasterRequest(String req) throws IOException{
         System.out.println("In Master parsing method");
         String [] parts = req.split("#");
         for(int i = 0; i < parts.length ; i++){
@@ -218,13 +208,58 @@ public class Server implements Runnable{
         else if(parts[1].equals("SERVSTATUS")){
             //writeToLog();
             System.out.println("New server position");
-            myPosition = ServerStatus.valueOf(parts[1]);
+            myPosition = ServerStatus.valueOf(parts[2]);
             System.out.println(myPosition.toString());
+        }
+        else if(parts[1].equals("NEWSERV")){
+            System.out.println("New server wants to join");
+            sServerPort = Integer.parseInt(parts[2]);
+            try {
+                successorSock = SocketChannel.open();
+                successorSock.connect(new InetSocketAddress(sServerIP,sServerPort ));
+            } catch (IOException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            System.out.println("Successfully relinked to successor");
+            sendBank();
+            String newData = "DONESENDING#"+bankName;
+            ByteBuffer buf = ByteBuffer.allocate(100);
+            buf.clear();
+            buf.put(newData.getBytes());
+            buf.flip();
+            try {
+                int byteSent = datagramChannel.send(buf, new InetSocketAddress("localhost", masterPort));
+            } catch (IOException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
         }
         else{
             
         }
         return;
+    }
+    public static void sendBank() throws IOException{
+        Iterator<Map.Entry<String, Double>> entries = bank.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<String, Double> entry = entries.next();
+            String newData = "SETUP#"+ entry.getKey() + "#" + entry.getValue();
+            ByteBuffer buf = ByteBuffer.allocate(100);
+            buf.clear();
+            buf.put(newData.getBytes());
+            buf.flip();
+            //if (successorSock == null) {
+                successorSock.close();
+                successorSock = SocketChannel.open();
+                successorSock.connect(new InetSocketAddress("localhost", sServerPort));
+                System.out.println("Connection to successor established");
+            //}
+            messagesS++;
+            while (buf.hasRemaining()) {
+                successorSock.write(buf);
+            };
+            writeToLog(new Date() + "Bank Account sent" + entry.getKey());
+        }
     }
     public static void processAck(int ACK){
         if(myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
@@ -279,16 +314,17 @@ public class Server implements Runnable{
      * withdrawal#clientIPPORT%bank_name%accountnum%seq#amount
      * balance#clientIPPORT%bank_name%accountnum%seq
      */
-    private static int parseRequest(String req, MessagesEnum m) {
+    private static int parseRequest(String req, MessagesEnum m) throws IOException {
         System.out.println("request:" + req);
         String response = "reply#";
         String[] parts = req.split("#");
         if(parts.length<=1){
-            System.out.println("ASS");
+            //System.out.println("ASS");
             return -1;
         }
         for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
         }
         
         if(parts[0].equals(B) && m == MessagesEnum.SOCKCHANNELREAD){
@@ -298,6 +334,13 @@ public class Server implements Runnable{
         if(parts[0].equals("MASTER")){
             System.out.println("Master Message");
             parseMasterRequest(req);
+            return -1;
+        }
+        if(parts[0].equals("SETUP")){
+            System.out.println("SETUP");
+            double bal = Double.parseDouble(parts[2]);
+            bank.put(req,bal);
+            writeToLog(new Date() + "Setup Account number " + parts[1] + " balance $" + bal);
             return -1;
         }
         response += parts[1] + "#";
@@ -815,7 +858,25 @@ public class Server implements Runnable{
         bank = new HashMap<String, Double>();
         history = new HashMap<String, ReqObject>();
         sent = new HashMap<Integer, String>();
-        
+        if(start_delay>0 ){
+            System.out.println("START UP DELAY");
+            try {
+                Thread.sleep(start_delay * 1000);
+            } catch (InterruptedException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            String newData = "JOIN#"+ bankName+ "#" + myPort;
+            ByteBuffer buf = ByteBuffer.allocate(100);
+            buf.clear();
+            buf.put(newData.getBytes());
+            buf.flip();
+            try {
+                datagramChannel = DatagramChannel.open();
+                int byteSent = datagramChannel.send(buf, new InetSocketAddress("localhost", masterPort));
+            } catch (IOException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
         //(new Thread(new Server())).start();
         
         try{
@@ -853,4 +914,6 @@ public class Server implements Runnable{
          */
     }
 }
+
+
 

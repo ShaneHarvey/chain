@@ -1,8 +1,4 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -29,9 +25,18 @@ enum ServerStatus {
 class BankChain{
     String bankName;
     ArrayList<Integer> chain;
+    int requestToJoinPort = -1;
     public BankChain(String bn){
         bankName = bn;
         chain = new ArrayList();
+    }
+    public int getTail(){
+        if(chain.size()> 0){
+            return (chain.get(chain.size() - 1 ));
+        }
+        else{
+            return -1;
+        }
     }
     public String printBankChain(){
         String output = bankName +": ";
@@ -107,6 +112,7 @@ public class Master implements Runnable{
     private static File logFile;
     public static String pound = "\n\n############################################################\n\n";
     private static DatagramChannel channel;
+    private static boolean joinFlag = false;
     public static void main(String[] args) throws IOException {
         createFile();
         parseArgs(args);
@@ -123,6 +129,90 @@ public class Master implements Runnable{
         }
         if(parts[0].equals("PING")){
             receivePing(parts[1]);
+        }
+        else if( parts[0].equals("JOIN")){
+            receiveJoin(msg);
+        }
+        else if( parts[0].equals("DONESENDING")){
+            receiveDoneSending(msg);
+        }
+    }
+    public static void receiveDoneSending(String msg){
+        System.out.println("Done Sending. Now finally finish chain.");
+        String [] parts = msg.split("#");
+        for(int i = 0; i < parts.length; i++){
+            parts[i] = parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
+            System.out.println(i+ " : "+ parts[i]);
+        }
+        BankChain target = bankChains.get(parts[1]);
+        String newData="";
+        if(target.chain.size()==1){
+            newData = "MASTER#SERVSTATUS#HEAD";
+        }
+        else{
+            newData = "MASTER#SERVSTATUS#MIDDLE";
+        }
+        ByteBuffer buf = ByteBuffer.allocate(100);
+        buf.clear();
+        buf.put(newData.getBytes());
+        buf.flip();
+        String newData2 = "MASTER#SERVSTATUS#TAIL";
+        ByteBuffer buf2 = ByteBuffer.allocate(100);
+        buf2.clear();
+        buf2.put(newData2.getBytes());
+        buf2.flip();
+        try {
+            int byteSent = channel.send(buf, new InetSocketAddress("localhost", target.getTail()));
+            byteSent += channel.send(buf, new InetSocketAddress("localhost", target.requestToJoinPort));
+        } catch (IOException ex) {
+            Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        target.chain.add(target.requestToJoinPort);
+        target.requestToJoinPort = -1;
+        String broadcast = "MASTER#" + target.bankName+ "#TAIL#"+ target.getTail();
+        sendNewTail(msg);//Broadcast Message to new tail
+        
+       
+    }
+    public static void receiveJoin(String msg){
+        System.out.println("Join Received");
+        String parts[] = msg.split("#");
+        for(int i = 0; i < parts.length; i++){
+            parts[i] = parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
+        }
+        BankChain target = bankChains.get(parts[1]);
+        int tailPort = target.getTail();
+        if(tailPort != -1){
+            //joinFlag = true;
+            target.requestToJoinPort = Integer.parseInt(parts[2]);
+            String newData = "MASTER#NEWPRED#" + tailPort;
+            ByteBuffer buf = ByteBuffer.allocate(100);
+            buf.clear();
+            buf.put(newData.getBytes());
+            buf.flip();
+            try {
+                int byteSent = channel.send(buf, new InetSocketAddress("localhost", Integer.parseInt(parts[2])));
+            } catch (IOException ex) {
+                Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
+            String newData2 = "MASTER#NEWSERV#" + parts[2];
+            ByteBuffer buf2 = ByteBuffer.allocate(100);
+            buf2.clear();
+            buf2.put(newData2.getBytes());
+            buf2.flip();
+            try {
+                int byteSent = channel.send(buf2, new InetSocketAddress("localhost", tailPort));
+            } catch (IOException ex) {
+                Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
+            //Send old TAIL server that they are now MIDDLE or HEAD depends
+            //Send new TAIL that they are tail
+            
         }
     }
     /**
@@ -237,7 +327,7 @@ public class Master implements Runnable{
                         System.out.println("NEW TAIL");
                         //Send to clients
                         int bankSize = bankChains.get(parse[0]).chain.size();
-                        String msg = "MASTER#" + parse[0] + "#HEAD#"+ bankChains.get(parse[0]).chain.get(bankSize -1);
+                        String msg = "MASTER#" + parse[0] + "#TAIL#"+ bankChains.get(parse[0]).chain.get(bankSize -1);
                         sendNewTail(msg);
                     }
                     //pings.remove(entry.getKey());
@@ -253,12 +343,13 @@ public class Master implements Runnable{
         }
     }
     private static void sendNewHead(String toSend) {
-        ByteBuffer buf = ByteBuffer.allocate(48);
+        ByteBuffer buf = ByteBuffer.allocate(100);
         buf.clear();
         buf.put(toSend.getBytes());
         buf.flip();
         for(int i = 0; i  < clients.size(); i++){
             try {
+                System.out.println("New Head sent to port " +clients.get(i));
                 int bytesSent = channel.send(buf, new InetSocketAddress("localhost", clients.get(i)));
             } catch (IOException ex) {
                 System.out.println("Failed to send client new Tail message on port "+ clients.get(i));
@@ -269,12 +360,13 @@ public class Master implements Runnable{
     }
 
     private static void sendNewTail(String toSend) {
-        ByteBuffer buf = ByteBuffer.allocate(48);
+        ByteBuffer buf = ByteBuffer.allocate(1000);
         buf.clear();
         buf.put(toSend.getBytes());
         buf.flip();
         for(int i = 0; i  < clients.size(); i++){
             try {
+                System.out.println("New Head sent to port " +clients.get(i));
                 int bytesSent = channel.send(buf, new InetSocketAddress("localhost", clients.get(i)));
             } catch (IOException ex) {
                 System.out.println("Failed to send client new Tail message on port "+ clients.get(i));
