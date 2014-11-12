@@ -8,9 +8,11 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -198,6 +200,7 @@ public class Client {
     }
     private static void sendRequests() throws IOException{
         timeout = 1000*rely_timeout;
+        writeToLog("Timeout: " + timeout);
         DatagramChannel channel = DatagramChannel.open();
         channel.socket().bind(new InetSocketAddress(myPort));
         for(int i = 0; i < requests.length ; i ++ ){
@@ -207,6 +210,9 @@ public class Client {
             } catch (InterruptedException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             }
+            int retVal = 0;
+            int count = 0;
+            while(retVal != 1 && count < request_retries){
             Selector selector = Selector.open();
             channel.configureBlocking(false);
             channel.register(selector, SelectionKey.OP_READ);
@@ -227,9 +233,8 @@ public class Client {
                 host = b.tailIP;
                 port = b.tailPort;
             }
-            int retVal = 0;
-            int count = 0;
-            while(retVal != 1 && count < request_retries){
+            writeToLog("Host: "+host+", Port: "+ port);
+            
                 System.out.println("Request: "+ requests[i]);
                 if(count != 0){
                     System.out.println("Message not recieved in timely manner. Retransmitting " + count + " time.");
@@ -245,7 +250,8 @@ public class Client {
                 int bytesSent;
                 System.out.println("DropRate " + dropRate + ", random " + result);
                 if(result > dropRate){
-                    bytesSent= channel.send(sendbuf, new InetSocketAddress(host, port));
+                    bytesSent= channel.send(sendbuf, new InetSocketAddress("localhost", port));
+                    writeToLog("Bytes Sent: " + bytesSent + " to port "+ port);
                 }
                 else{
                     System.out.println("Message drop simulated. Not sending message.");
@@ -326,14 +332,16 @@ public class Client {
         //parts[3] will have new port number
         BankInfo modify = bankMap.get(parts[1]);
         if(parts[2].equals("HEAD")){
-            modify.headPort = Integer.parseInt(parts[3]);
+            
+            bankMap.get(parts[1]).headPort = Integer.parseInt(parts[3]);
             System.out.println("NEW HEAD");
-            writeToLog("Recevied new head server message from master for " + parts[1] + " bank. New port number is "+ modify.headPort);
+            writeToLog("Recevied new head server message from master for " + parts[1] + " bank. New port number is "+ bankMap.get(parts[1]).headPort);
+            printBankInfo();
         }
         else if(parts[2].equals("TAIL")){
-            modify.tailPort = Integer.parseInt(parts[3]);
+            bankMap.get(parts[1]).tailPort = Integer.parseInt(parts[3]);
             System.out.println("NEW TAIL");
-            writeToLog("Recevied new tail server message from master for " + parts[1] + " bank. New port number is "+ modify.headPort);
+            writeToLog("Recevied new tail server message from master for " + parts[1] + " bank. New port number is "+ bankMap.get(parts[1]).headPort);
         }
     }
     public static int parseResponse(String response, String reqType, int requestNumber){
@@ -369,14 +377,18 @@ public class Client {
         }
         return 1;
     }
+    public static void printBankInfo(){
+        Iterator<Map.Entry<String, BankInfo>> entries = bankMap.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<String, BankInfo> entry = entries.next();
+            writeToLog("BankName: " + entry.getKey() + ", Head Port: " +entry.getValue().headPort + ", Tail Port: " + entry.getValue().tailPort);
+        }
+    }
     public static void main (String [] args) throws IOException{
         parseArgs(args);
         createFile();
+        printBankInfo();
         sendRequests();
-        //System.out.println(requests[0]);
-        //System.out.println(getBank(requests[0]));
-        //System.out.println(getRequestDest(requests[0]));
         
-        //System.out.println("Herer");
     }
 }

@@ -226,11 +226,13 @@ public class ExecSimulation {
                     String chain= analyze.bank_name+"#";
                     //analyze.servers
                     for(int j = 0; j < analyze.servers.size(); j++){
-                        if(j == 0){
-                            chain+=analyze.servers.get(j).Port;
-                        }
-                        else{
-                            chain+="#"+analyze.servers.get(j).Port;
+                        if(analyze.servers.get(j).Start_delay.equals("0")){
+                            if(j == 0){
+                                chain+=analyze.servers.get(j).Port;
+                            }
+                            else{
+                                chain+="#"+analyze.servers.get(j).Port;
+                            }
                         }
                     }
                     if(x == 0){
@@ -256,7 +258,8 @@ public class ExecSimulation {
                 //System.out.println("Clients: "+ clientInfoMaster);
                 
                 //RUN MASTER HERE 
-                String masterExec = "java Master 49999 "+ clientInfoMaster +" "+ bankChainInfoMaster;
+                String MasterPort = "49999";
+                String masterExec = "java Master "+MasterPort +" "+ clientInfoMaster +" "+ bankChainInfoMaster;
                 Process masterProcess = Runtime.getRuntime().exec(masterExec);
                 System.out.println(masterExec);
                 ArrayList<ServerInfoForClient> servInfoCli = new ArrayList<ServerInfoForClient>();
@@ -271,11 +274,33 @@ public class ExecSimulation {
                     String execCmd = "java Server ";
                     String hIP = "", hPort = "", tIP="", tPort="", bn="";
                     bn = analyze.bank_name;
+                    boolean joinFlag = false;
+                    if(analyze.servers.size() == 2 && analyze.servers.get(1).Start_delay.equals("0")){
+                        joinFlag = false;
+                    }
+                    else{
+                        joinFlag = true;
+                    }
                     
-                    if(analyze.servers.size()== 1){
+                    if(analyze.servers.size()== 1 && joinFlag == false ){
+                        //if(analyze.servers.size() == 1){
+                            ServerInfo si = analyze.servers.get(0);
+                            execCmd += "HEAD_TAIL " +si.IP + ":" + si.Port;
+                            execCmd += " localhost:0 localhost:0 localhost:"+ MasterPort +" " + si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send+ " " + analyze.bank_name;;
+                            hIP = si.IP;
+                            hPort = si.Port;
+                            tIP = si.IP;
+                            tPort = si.Port;
+                            System.out.println(execCmd);
+                            Thread.sleep(500);
+                            Process pro = Runtime.getRuntime().exec(execCmd);
+                            serverPros.add(pro);
+                        //}
+                    }
+                    else if(analyze.servers.size()== 2 && joinFlag == true){
                         ServerInfo si = analyze.servers.get(0);
                         execCmd += "HEAD_TAIL " +si.IP + ":" + si.Port;
-                        execCmd += " localhost:0 localhost:0 localhost:0 "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send+ " " + analyze.bank_name;;
+                        execCmd += " localhost:0 localhost:0 localhost:"+ MasterPort +" " + si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send+ " " + analyze.bank_name;;
                         hIP = si.IP;
                         hPort = si.Port;
                         tIP = si.IP;
@@ -284,16 +309,29 @@ public class ExecSimulation {
                         Thread.sleep(500);
                         Process pro = Runtime.getRuntime().exec(execCmd);
                         serverPros.add(pro);
+                        
+                        execCmd = "java Server ";
+                        ServerInfo si2 = analyze.servers.get(1);
+                        execCmd += "TAIL " +si2.IP + ":" + si2.Port;
+                        execCmd += " localhost:0 localhost:0 localhost:"+ MasterPort +" " +si2.Start_delay + " " + si2.Lifetime + " " + si2.Receive + " " + si2.Send+ " " + analyze.bank_name;;
+                        hIP = si.IP;
+                        hPort = si.Port;
+                        tIP = si.IP;
+                        tPort = si.Port;
+                        System.out.println(execCmd);
+                        Thread.sleep(500);
+                        Process pro2 = Runtime.getRuntime().exec(execCmd);
+                        serverPros.add(pro2);
                     }
                     else{
                         for(int j = 0; j < analyze.servers.size(); j++){
                             execCmd = "java Server ";
                             ServerInfo si = analyze.servers.get(j);
                             //Head server
-                            if(j == 0){
+                            if(j == 0 ){
                                 ServerInfo siSucc = analyze.servers.get(j+1);
                                 execCmd += "HEAD " + si.IP + ":" +si.Port+ " ";
-                                execCmd += "localhost:0 " + siSucc.IP +":" +siSucc.Port + " localhost:0";
+                                execCmd += "localhost:0 " + siSucc.IP +":" +siSucc.Port + " localhost:"+MasterPort;
                                 execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send + " " + analyze.bank_name;
                                 System.out.println(execCmd);
                                 hIP = si.IP;
@@ -304,7 +342,7 @@ public class ExecSimulation {
                             else if(j == (analyze.servers.size() - 1) ){
                                 ServerInfo siPred =  analyze.servers.get(j-1);
                                 execCmd += "TAIL " + si.IP + ":" +si.Port+ " ";
-                                execCmd +=  siPred.IP +":" +siPred.Port + " localhost:0 localhost:0";
+                                execCmd +=  siPred.IP +":" +siPred.Port + " localhost:0 localhost:"+MasterPort;
                                 execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send+ " " + analyze.bank_name;
                                 tIP = si.IP;
                                 tPort = si.Port;
@@ -315,7 +353,7 @@ public class ExecSimulation {
                                 ServerInfo siSucc =  analyze.servers.get(j+1);
                                 ServerInfo siPred =  analyze.servers.get(j-1);
                                 execCmd += "MIDDLE " + si.IP + ":" +si.Port+ " ";
-                                execCmd +=  siPred.IP +":" +siPred.Port +" " +siSucc.IP+":"+ siSucc.Port +" localhost:0";
+                                execCmd +=  siPred.IP +":" +siPred.Port +" " +siSucc.IP+":"+ siSucc.Port +" localhost:"+ MasterPort;
                                 execCmd += " "+ si.Start_delay + " " + si.Lifetime + " " + si.Receive + " " + si.Send + " " + analyze.bank_name;
                                 System.out.println(execCmd);
                             }

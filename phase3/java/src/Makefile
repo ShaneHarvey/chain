@@ -3,7 +3,8 @@ JAVAC=javac
 LIBS=-cp ./json-simple-1.1.1.jar:.
 OBJ=Client.class \
 	Server.class \
-	ExecSimulation.class
+	ExecSimulation.class \
+	Master.class
 CONF_DIR=../config/
 
 .PHONY: all clean %

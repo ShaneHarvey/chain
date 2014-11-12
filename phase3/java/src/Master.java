@@ -28,7 +28,7 @@ class BankChain{
     int requestToJoinPort = -1;
     public BankChain(String bn){
         bankName = bn;
-        chain = new ArrayList();
+        chain = new ArrayList<Integer>();
     }
     public int getTail(){
         if(chain.size()> 0){
@@ -310,22 +310,24 @@ public class Master implements Runnable{
                 printBankChains();
                 
             } catch (InterruptedException ex) {
+                writeToLog("EXCEPTION in run thread");
                 Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
             }
             
         }    
     }
     public static synchronized void receivePing(String port){
-        //System.out.println("Received Ping from " + port);
+        System.out.println("Received Ping from " + port);
         pings.put(port, 1);
     }
     public static synchronized void checkServersStatus(){
+        writeToLog("In check server Status method");
         Iterator<Map.Entry<String, Integer>> entries = pings.entrySet().iterator();
         ArrayList<String> toRemove = new ArrayList<String>();
         while (entries.hasNext()) {
             Map.Entry<String, Integer> entry = entries.next();
             if(entry.getValue() == 0){//change to one for testing if you want
-                try {
+                //try {
                     //We did not get a ping in the last 5 seconds
                     writeToLog("Server " + entry.getValue() + " is no longer alive.");
                     System.out.println("Server " + entry.getKey() + " is no longer alive.");
@@ -343,6 +345,7 @@ public class Master implements Runnable{
                     //bankChains.get(parse[0]).removeServer(Integer.parseInt(parse[1]));
                     
                     System.out.println("pPort = " + pPort + ", sPort = " + sPort);
+                    writeToLog("pPort = " + pPort + ", sPort = " + sPort);
                     ServerStatus loc = bankChains.get(parse[0]).getServerStatus(Integer.parseInt(parse[1]));
                     bankChains.get(parse[0]).removeServer(Integer.parseInt(parse[1]));
                     /*if(pPort == -1){
@@ -361,41 +364,64 @@ public class Master implements Runnable{
                     if(sPort != -1 && pPort != -1){
                         //Middle server failed
                         System.out.println("INTERNAL FAILURE");
+                        writeToLog("Internal Server Failure. Send Messge to predecessor port "+ pPort + " and message to successor port "+ sPort);
                         String newData = "MASTER#NEWPRED#"+ pPort;
                         ByteBuffer buf = ByteBuffer.allocate(48);
                         buf.clear();
                         buf.put(newData.getBytes());
                         buf.flip();
-                        int bytesSent = channel.send(buf, new InetSocketAddress("localhost", sPort));
+                        try {
+                            int bytesSent = channel.send(buf, new InetSocketAddress("localhost", sPort));
+                        } catch (IOException ex) {
+                            writeToLog("Internal server failure error to send msg.");
+                            Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                        }
                         
                         String newData2 = "MASTER#NEWSUCC#"+ sPort;
                         ByteBuffer buf2 = ByteBuffer.allocate(48);
                         buf2.clear();
                         buf2.put(newData2.getBytes());
                         buf2.flip();
-                        int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", pPort));
-                        //System.out.println(bytesSent + " bytes sent.");
+                        try {
+                            int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", pPort));
+                            //System.out.println(bytesSent + " bytes sent.");
+                        } catch (IOException ex) {
+                            writeToLog("Internal server failure error to send msg. 2");
+                            Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                        }
                         
                     }
                     else if( sPort == -1 && pPort != -1){
                         //NEW TAIL function
                         System.out.println("TAIL");
+                        writeToLog("Tail server failure. Sending predecessor port " + pPort + " message to become new tail");
                         String newData2 = "MASTER#SERVSTATUS#TAIL";
                         ByteBuffer buf2 = ByteBuffer.allocate(48);
                         buf2.clear();
                         buf2.put(newData2.getBytes());
                         buf2.flip();
-                        int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", bankChains.get(parse[0]).getTail()));
+                        try {
+                            int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", bankChains.get(parse[0]).getTail()));
+                        } catch (IOException ex) {
+                           writeToLog("TAIL server failure error to send msg.");
+                            Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                        }
                     }
                     else if( (sPort != -1 && sPort != bankChains.get(parse[0]).getTail() )&& pPort == -1){
                         //NEW HEAD function 
                         System.out.println("HEAD");
+                        writeToLog("Head server failure. Sending predecessor port " + sPort + " message to become new head");
                         String newData2 = "MASTER#SERVSTATUS#HEAD";
                         ByteBuffer buf2 = ByteBuffer.allocate(48);
                         buf2.clear();
                         buf2.put(newData2.getBytes());
                         buf2.flip();
-                        int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", bankChains.get(parse[0]).getHead()));
+                        try {
+                            int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", bankChains.get(parse[0]).getHead()));
+                        } catch (IOException ex) {
+                            writeToLog("HEAD server failure error to send msg.");
+                            Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                        }
                     }
                     else if( (sPort == bankChains.get(parse[0]).getTail()) && pPort == -1){
                         //NEW HEAD_TAIL FUNCTION
@@ -405,7 +431,12 @@ public class Master implements Runnable{
                         buf2.clear();
                         buf2.put(newData2.getBytes());
                         buf2.flip();
-                        int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", bankChains.get(parse[0]).getHead()));
+                        try {
+                            int bytesSent2 = channel.send(buf2, new InetSocketAddress("localhost", bankChains.get(parse[0]).getHead()));
+                        } catch (IOException ex) {
+                            writeToLog("HEAD TAIL server failure error to send msg.");
+                            Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                        }
                     
                     }
                     else{
@@ -432,21 +463,25 @@ public class Master implements Runnable{
                     
                     
                     if(isHead){
+                        writeToLog("Sending Clients new Head Message.");
                         String msg = "MASTER#" + parse[0] + "#HEAD#"+bankChains.get(parse[0]).getHead();
                         sendNewHead(msg);
                     }
                     if(isTail){
+                        writeToLog("Sending Clients new Tail Message.");
                         String msg = "MASTER#" + parse[0] + "#TAIL#"+bankChains.get(parse[0]).getTail();
                         sendNewHead(msg);
                     }
                     //pings.remove(entry.getKey());
-                } catch (Exception ex) {
-                    Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
-                }
+                //} catch (Exception ex) {
+                //    writeToLog("EXCEPTION.");
+                //    Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                //}
                 
             }
             else{
                 writeToLog("Server " + entry.getKey() + " is alive.");
+                
                 System.out.println("Server running on port " + entry.getKey() + " is alive.");
                 pings.put(entry.getKey(), 0);//reset the ping count to zero
                 String [] parse = entry.getKey().split(":");
@@ -455,8 +490,11 @@ public class Master implements Runnable{
                     parse[i] = parse[i].trim();
                     System.out.println(parse[i]);
                 }
+                boolean temp = bankChains.get(parse[0]).isServPresent(Integer.parseInt(parse[1]));
+                writeToLog("is present : " + temp);
                 if(bankChains.get(parse[0]).isServPresent(Integer.parseInt(parse[1])) == false){
                     bankChains.get(parse[0]).chain.add(Integer.parseInt(parse[1]));
+                    writeToLog("New server added to chain port" + entry.getKey());
                 }
             }
         }
