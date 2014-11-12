@@ -3,7 +3,9 @@ import logging
 from collections import defaultdict
 # Decimal is used to store monetary values precisely
 from decimal import Decimal
+import threading
 from time import sleep
+import sys
 
 const = import_da('const')
 
@@ -13,7 +15,8 @@ class Server(process):
     def setup(master, predecessor, successor, bank_name, conf, logfile):
         self.is_head = not predecessor
         self.is_tail = not successor
-        # self.processed_updates
+        self.sent = Sent()
+        self.SEQ = 0
         self.updates = dict()
         self.bank = defaultdict(int)
         self.lifetime = conf['lifetime']
@@ -29,50 +32,6 @@ class Server(process):
             predecessor = None
             successor = None
 
-    def set_predecessor(new_pred):
-        predecessor = new_pred
-        is_head = False
-
-    def set_successor(new_suc):
-        successor = new_suc
-        is_tail = False
-
-    def setup_logfile():
-        rootlog = logging.getLogger('')
-        filelvl = logging.INFO
-        fh = logging.FileHandler(logfile)
-        formatter = logging.Formatter('[%(asctime)s]%(name)s: %(message)s')
-        fh.setFormatter(formatter)
-        fh.setLevel(filelvl)
-        rootlog._filelvl = filelvl
-        rootlog.addHandler(fh)
-
-    def print_init_settings():
-        output('*** Initial settings ***')
-        if is_head:
-            output('Operating as head server for bank %s' % bank_name)
-        if is_tail:
-            output('Operating as tail server for bank %s' % bank_name)
-        if not is_tail and not is_head:
-            output('Operating as internal server for bank %s' % bank_name)
-        if predecessor:
-            output('Predecessor is %s' % predecessor)
-        if successor:
-            output('Successor is %s' % successor)
-        if lifetime >= 0:
-            output('Server will shutdown after %s seconds' % lifetime)
-        else:
-            output('Server has no lifetime constraint')
-        if recv_limit >= 0:
-            output('Server will shutdown after receiving %s messages' % recv_limit)
-        else:
-            output('Server has no message receive constraint')
-        if send_limit >= 0:
-            output('Server will shutdown after sending %s messages' % send_limit)
-        else:
-            output('Server has no message send constraint')
-        output('*** Initial settings ***')
-
     def main():
         setup_logfile()
         print_init_settings()
@@ -80,8 +39,11 @@ class Server(process):
         if delay != 0:
             output('Sleeping for %s seconds.' % delay)
             sleep(delay)
+            # Join the chain
             join_chain()
 
+        ping_thread = threading.Thread(target=ping_master, daemon=True)
+        ping_thread.start()
         if lifetime >= 0:
             # wait t seconds, until we send s messages, or receive r messages
             if await(len(listof(mesg, received(mesg))) == recv_limit):
@@ -100,9 +62,89 @@ class Server(process):
         log_bank()
         output("Terminating..")
 
+    def ping_master():
+        while True:
+            sleep(1.0)
+            send(('ping', bank_name), to=master)
+
+    # Methods for extending the chain
     def join_chain():
-        """Send joinChain request to master."""
-        pass
+        """Initiate the chain extension for this bank."""
+        send(('joinChain', bank_name), to=master)
+
+    def receive(msg=('extendChain', new_tail), from_=m):
+        if m != master:
+            return
+        output('Received extendChain')
+        # Send all the updates
+        send(('history', updates), to=new_tail)
+        # Send the bank
+        send(('bank', bank), to=new_tail)
+        # Send endOfUpdates
+        send(('endOfUpdates',), to=new_tail)
+        is_tail = False
+        successor = new_tail
+
+    def receive(msg=('history', u), from_=old_tail):
+        updates = u
+
+    def receive(msg=('bank', b), from_=old_tail):
+        bank = b
+
+    def receive(msg=('endOfUpdates',), from_=old_tail):
+        """Notify master to finish the chain extension."""
+        # Send new tail to master
+        this_msg = ('endOfUpdates', bank_name)
+        log_recv(this_msg, old_tail)
+        mesg = ('newTail', bank_name)
+        log_sent(mesg, master)
+        send(mesg, to=master)
+        output('Currently acting as TAIL server.')
+        is_tail = True
+        predecessor = old_tail
+
+    # End methods for extending the chain
+    # Methods for handling failure
+
+    def receive(msg='becomeHead', from_=m):
+        if m != master:
+            return
+        output('Received becomeHead from master: acting as HEAD server.')
+        predecessor = None
+        is_head = True
+
+    def receive(msg='becomeTail', from_=m):
+        if m != master:
+            return
+        output('Received becomeTail from master: acting as TAIL server.')
+        successor = None
+        is_tail = True
+
+    def receive(msg=('predecessorFailure', new_pred), from_=m):
+        if m != master:
+            return
+        output('Predecessor failed! New pred=%s, latest SEQ=%s' %
+               (new_pred, SEQ))
+        predecessor = new_pred
+        send(('newSucc', (new_pred, SEQ)), to=m)
+
+    def receive(msg=('successorFailure', (new_succ, last_seq)), from_=m):
+        if m != master:
+            return
+        output('Successor failed! New succ=%s, forwarding updates with SEQ>%s'
+               % (new_succ, last_seq))
+        successor = new_succ
+        # TODO: Send updates > last_seq to new_succ
+        for i, update in enumerate(self.sent.updates(last_seq)):
+            fwd = ('fwdUpdate', last_seq + i + 1, update)
+            log_sent(fwd, successor)
+            send(fwd, to=successor)
+
+    def latest_seq():
+        """TODO: Return the last seen sequence number."""
+        return 0
+
+    # End Methods for handling failure
 
     def receive(msg=('balance', (reqid, account)), from_=client):
         this_msg = ('balance', (reqid, account))
@@ -112,74 +154,114 @@ class Server(process):
             return
         outcome = const.PROCESSED
         reply_msg = ('reply', (reqid, outcome, account, str(bank[account])))
-        output('PROCESSED balance request for account %s, current balance $%s'\
-                    % (account, bank[account]))
+        output('PROCESSED balance request for account %s, current balance $%s'
+               % (account, bank[account]))
         log_sent(reply_msg, client)
         send(reply_msg, to=client)
 
 # TODO: COMBINE these 2 methods!
 
     def receive(msg=('withdrawal', (reqid, account, amount)), from_=p):
+        if not is_head:
+            return
+        # Increment the SEQ number
+        seq = inc_seq()
         this_msg = ('withdrawal', (reqid, account, amount))
         log_recv(this_msg, p)
-        # If we are not the head server ignore client updates
-        if not is_head and (p != predecessor):
-            return
 
-        # check if this request is a duplicate or inconsisternt
-        reply = dup_or_incon(reqid, this_msg, account)
-        if not reply:
-            # withdrawal his $$$
-            if bank[account] >= Decimal(amount):
-                bank[account] -= Decimal(amount)
-                outcome = const.PROCESSED
-                output('PROCESSED withdrawal of $%s from account %s, new balance $%s'\
-                    % (amount, account, bank[account]))
-            else:
-                outcome = const.INSUFFICIENT_FUNDS
-                output('INSUFFICIENT FUNDS: account %s only has $%s, cannot withdraw $%s'\
-                    % (account, bank[account], amount))
-            reply = ('reply', (reqid, outcome, account, str(bank[account])))
-            # Save this update to our update history
-            add_to_updates(reqid, this_msg, reply)
-
-        # forward the update
-        fwd_update(this_msg, reply, reqid[0])
+        process_update(this_msg, seq)
 
     def receive(msg=('deposit', (reqid, account, amount)), from_=p):
+        if not is_head:
+            return
+        # Increment the SEQ number
+        seq = inc_seq()
         this_msg = ('deposit', (reqid, account, amount))
         log_recv(this_msg, p)
-        # If we are not the head server ignore client updates
-        if not is_head and (p != predecessor):
+        process_update(this_msg, seq)
+
+    def receive(msg=('fwdUpdate', seq, orig_update), from_=p):
+        if is_head or p != predecessor:
+            # invalid from_
+            output('IGNORE: fwdUpdate from invalid process %s' % p)
             return
+        if self.SEQ >= seq:
+            output('Receive fwdUpdate: invalid SEQ', level=logging.ERROR)
+            sys.exit(1)
+        # seq is strictly increasing
+        self.SEQ = seq
+        process_update(orig_update, seq)
 
-        # check if this request is a duplicate or inconsisternt
-        reply = dup_or_incon(reqid, this_msg, account)
+    def receive(msg=('ACK', ack), from_=s):
+        if s != successor:
+            output('Received ACK from invalid server')
+            return
+        output('Received ACK=%s' % ack)
+        self.sent.remove(ack)
+
+    def process_update(update, seq):
+        update_type, (reqid, account, amount) = update
+        # check if this update is a duplicate or inconsistent
+        reply = dup_or_incon(reqid, update, account)
         if not reply:
-            # Deposit his $$$
-            bank[account] += Decimal(amount)
-            output('PROCESSED deposit of $%s into account %s, new balance $%s'\
-                    % (amount, account, bank[account]))
-            reply = ('reply', (reqid, const.PROCESSED, account, str(bank[account])))
+            if update_type == 'deposit':
+                outcome = deposit(account, amount)
+            elif update_type == 'withdrawal':
+                outcome = withdrawal(account, amount)
+            else:
+                output('update_type: %s not supported ' % update_type,
+                       level=logging.ERROR)
+                return
+            reply = ('reply', (reqid, outcome, account, str(bank[account])))
             # Save this update to our update history
-            add_to_updates(reqid, this_msg, reply)
-
+            add_to_updates(reqid, update, reply)
         # forward the update
-        fwd_update(this_msg, reply, reqid[0])
+        fwd_update(seq, update, reply, reqid[0])
 
-    def fwd_update(orig_msg, reply, client):
+    def inc_seq():
+        """Return SEQ++."""
+        cur = self.SEQ
+        self.SEQ += 1
+        return cur
+
+    def withdrawal(account, amount):
+        # withdrawal his $$$
+        if bank[account] >= Decimal(amount):
+            bank[account] -= Decimal(amount)
+            outcome = const.PROCESSED
+            output('PROCESSED: account %s withdrawal of $%s, new balance $%s' %
+                   (account, amount, bank[account]))
+        else:
+            outcome = const.INSUFFICIENT_FUNDS
+            output('INSUFFICIENT FUNDS: account %s cannot withdraw $%s' %
+                   (account, bank[account], amount))
+        return outcome
+
+    def deposit(account, amount):
+        # Deposit his $$$
+        bank[account] += Decimal(amount)
+        output('PROCESSED deposit of $%s into account %s, new balance $%s' %
+               (amount, account, bank[account]))
+        return const.PROCESSED
+
+    def fwd_update(seq, orig_msg, reply, client):
         if is_tail:
             # Reply to the client
             log_sent(reply, client)
             send(reply, to=client)
+            if predecessor:
+                send(('ACK', seq), to=predecessor)
+                output('Sending ACK=%s to predecessor' % seq)
         else:
             # Forward the update to successor
-            log_sent(orig_msg, successor)
-            send(orig_msg, to=successor)
+            fwd = ('fwdUpdate', seq, orig_msg)
+            log_sent(fwd, successor)
+            send(fwd, to=successor)
+            self.sent.add(seq, orig_msg)
 
     def add_to_updates(reqid, request, reply):
-        assert reqid not in updates, 'Error: request id %s already exisits in updates' % str(reqid)
-        output('Adding reqid to processed updates with the original request and reply')
+        assert reqid not in updates, 'Error: request id %s already exists in updates' % str(reqid)
+        output('Adding reqid to updates with the original request and reply')
         updates[reqid] = (request, reply)
 
     def get_prev_mesg(reqid):
@@ -206,15 +288,52 @@ class Server(process):
                 return ('reply', (reqid, const.INCONSISTENT, account, str(bank[account])))
         return None
 
+    def setup_logfile():
+        rootlog = logging.getLogger('')
+        filelvl = logging.INFO
+        fh = logging.FileHandler(logfile)
+        formatter = logging.Formatter('[%(asctime)s]%(name)s: %(message)s')
+        fh.setFormatter(formatter)
+        fh.setLevel(filelvl)
+        rootlog._filelvl = filelvl
+        rootlog.addHandler(fh)
+
+    def print_init_settings():
+        output('*** Initial settings ***')
+        output('Master is %s' % master)
+        if is_head:
+            output('Operating as head server for bank %s' % bank_name)
+        if is_tail:
+            output('Operating as tail server for bank %s' % bank_name)
+        if not is_tail and not is_head:
+            output('Operating as internal server for bank %s' % bank_name)
+        if predecessor:
+            output('Predecessor is %s' % predecessor)
+        if successor:
+            output('Successor is %s' % successor)
+        if lifetime >= 0:
+            output('Server will shutdown after %s seconds' % lifetime)
+        else:
+            output('Server has no lifetime constraint')
+        if recv_limit >= 0:
+            output('Server shutdown after receiving %s messages' % recv_limit)
+        else:
+            output('Server has no message receive constraint')
+        if send_limit >= 0:
+            output('Server shutdown after sending %s messages' % send_limit)
+        else:
+            output('Server has no message send constraint')
+        output('*** Initial settings ***')
+
     def log_sent(message, dest):
         num_sent += 1
         output('Sending message #%s: %s to=%s\n' %
-            (str(num_sent), str(message), str(dest)))
+               (str(num_sent), str(message), str(dest)))
 
     def log_recv(message, source):
         num_received += 1
         output('Received message #%s: %s from=%s' %
-            (str(num_received), str(message), str(source)))
+               (str(num_received), str(message), str(source)))
 
     def log_bank():
         strbank = ['\nBank State:', 'ACCOUNT \t BALANCE']
@@ -223,3 +342,30 @@ class Server(process):
             strbal = '0.00' if bal == 0 else str(bal)
             strbank.append('%s \t\t $%s' % (acc, strbal))
         output('\n'.join(strbank))
+
+class Sent:
+
+    def __init__(self):
+        self.base = 1
+        self.q = []
+
+    def add(self, seq, update):
+        if seq != self.base + len(self.q):
+            output('Invalid SEQ=%s for sent' % seq, level=logging.ERROR)
+            return
+        if not self.q:
+            self.base = seq
+        self.q.append(update)
+
+    def remove(self, ack):
+        while self.q and ack >= self.base:
+            self.q.pop()
+            self.base += 1
+
+    def updates(ack):
+        """Return a list of updates with seq starting at ack + 1."""
+        if ack < self.base:
+            output('Invalid ACK=%s for updates' % ack, level=logging.ERROR)
+            return []
+        else:
+            return self.q[ack - self.base + 1:]

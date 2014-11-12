@@ -1,5 +1,6 @@
 import logging
-from threading import Timer
+import threading
+from time import sleep
 const = import_da('const')
 
 
@@ -32,13 +33,11 @@ class Master(process):
         """
         setup_logfile()
         print_init_settings()
-        # failure_check is executed every 5.0 seconds as a separate thread
-        fail_timer = Timer(5.0, failure_check)
-        fail_timer.start()
+        fail_thread = threading.Thread(target=failure_detection, daemon=True)
+        fail_thread.start()
         # Wait for all servers of all banks to fail
         await(received('Terminate'))
         output("All servers have failed, terminating...")
-        fail_timer.cancel()
 
     def receive(msg=('ping', bankname), from_=server):
         """Update the ping count of the server."""
@@ -51,17 +50,20 @@ class Master(process):
 
     def receive(msg=('joinChain', bankname), from_=new_tail):
         output('Received joinChain: bank=%s, server=%s' % (bankname, new_tail))
-        tail = tail(bankname)
-        if tail:
+        cur_tail = tail(bankname)
+        if cur_tail:
             mesg = ('extendChain', new_tail)
-            output('Sending extendChain to current tail=%s' % tail)
-            send(mesg, to=tail)
+            output('Sending extendChain to current tail=%s' % cur_tail)
+            send(mesg, to=cur_tail)
         else:
             output('Bank %s does not have a server chain!' % bankname)
 
     def receive(msg=('newTail', bankname), from_=new_tail):
         output('Received newTail: bank=%s, new tail=%s' % (bankname, new_tail))
-        updateTail(bankname, new_tail)
+        # TODO: lock chains
+        chains[bankname].append(Server(bankname, new_tail))
+        ##################
+        update_tail(bankname, new_tail)
 
     def receive(msg=('newSucc', (pred, last_seq)), from_=new_succ):
         """Handle the case of internal server failure.
@@ -73,6 +75,11 @@ class Master(process):
         mesg = ('successorFailure', (new_succ, last_seq))
         output('Sending successorFailure to pred=%s' % pred)
         send(mesg, to=pred)
+
+    def failure_detection():
+        while True:
+            sleep(5.0)
+            failure_check()
 
     def failure_check():
         """Check if any servers have failed and send appropriate messages."""
@@ -88,9 +95,11 @@ class Master(process):
             # TODO: think about correctness due to threading.
             #       In particular, what happens if a chain is updated during
             #       this check
-            for i in range(chainlen):
-                if chains[bank][i].is_alive():
+            for i, serv in enumerate(chains[bank]):
+                output('Checking server %s, pings=%s' % (serv.pid, serv.pings))
+                if serv.is_alive():
                     alive.append(i)
+                serv.reset_pings()
 
             num_alive += len(alive)
             # Handle complete failure of a chain
@@ -189,3 +198,6 @@ class Server:
     def is_alive(self):
         """Alive servers must have at least one ping in the last period."""
         return self.pings > 0
+
+    def reset_pings(self):
+        self.pings = 0

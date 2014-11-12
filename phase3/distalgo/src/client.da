@@ -1,5 +1,6 @@
 import random
 import logging
+from time import sleep
 
 const = import_da('const')
 
@@ -14,6 +15,7 @@ class Client(process):
         self.rand_req = False
         self.valid_reqs = ['balance', 'deposit', 'withdrawal']
         # Parse conf
+        self.req_delay = conf['req_delay'] if 'req_delay' in conf else 0.0
         self.reply_timeout = conf['reply_timeout']
         self.request_retries = conf['request_retries']
         self.resend_head = conf["resend_head"]
@@ -44,17 +46,19 @@ class Client(process):
             reply = send_request(req)
             prettyprint_reply(reply)
             req = get_request()
+            # Sleep for req_delay seconds
+            sleep(req_delay)
         output("No more requests to send, terminating...")
 
-    def receive(msg=('updateHead', (bank, pid)), from_=m):
+    def receive(msg=('updateHead', (bank, new_head)), from_=m):
         if m == master and bank in banks:
-            output('Updating head of bank=%s to server=%s' % (bank, pid))
-            banks[bank]['head'] = pid
+            output('Updating head of bank=%s to server=%s' % (bank, new_head))
+            banks[bank]['head'] = new_head
 
-    def receive(msg=('updateTail', (bank, pid)), from_=m):
+    def receive(msg=('updateTail', (bank, new_tail)), from_=m):
         if m == master and bank in banks:
-            output('Updating tail of bank=%s to server=%s' % (bank, pid))
-            banks[bank]['tail'] = tail
+            output('Updating tail of bank=%s to server=%s' % (bank, new_tail))
+            banks[bank]['tail'] = new_tail
 
     def receive(msg=('reply', (reqid, outcome, acc, bal)), from_=tail):
         replies.add((reqid, outcome, acc, bal))
@@ -166,7 +170,7 @@ class Client(process):
 
     def print_init_settings():
         output('*** Initial settings ***')
-
+        output('Master is %s' % master)
         if rand_req:
             output('Shutting down after sending %s random messages' % num_req)
             output('Probabilities: %s%% balance, %s%% deposit, %s%% withdrawal'\
