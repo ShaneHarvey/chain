@@ -12,6 +12,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -51,6 +53,7 @@ public class Client {
     private static File logFile;
     private static long timeout;//= 10000; //timeout ms
     private static double dropRate;
+    private static int msgDelay;
     /**
      * Parse the command line arguments passed to the client program
      * @param args 
@@ -60,7 +63,9 @@ public class Client {
      *  args[3] will contain the rely timeout
      *  args[4] will contain the request_retries
      *  args[5] will contain the resend_head value
-     *  args[6] will contain the percentages if its a random client
+     *  args[6] will contain the msg dorp rate double 
+     *  args[7] will contain the msg delay int
+     *  args[8] will contain the percentages if its a random client
      */
     
     public static void parseArgs(String [] args){
@@ -108,9 +113,15 @@ public class Client {
         else{
             resend_head = true;
         }
+        
+        
+        dropRate = Double.parseDouble(args[6]);
+        msgDelay = Integer.parseInt(args[7]);
+        System.out.println("dropRate:" + dropRate);
+        System.out.println("msgDelay:" + msgDelay);
         isRandom = false;
-        if(args.length == 7){
-            percentages = args[6];
+        if(args.length == 9){
+            percentages = args[8];
             isRandom = true;
         }
     }
@@ -190,6 +201,12 @@ public class Client {
         DatagramChannel channel = DatagramChannel.open();
         channel.socket().bind(new InetSocketAddress(myPort));
         for(int i = 0; i < requests.length ; i ++ ){
+            try {
+                System.out.println("Sleeping for "+ msgDelay + " seconds.");
+                Thread.sleep(msgDelay*1000);
+            } catch (InterruptedException ex) {
+                Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+            }
             Selector selector = Selector.open();
             channel.configureBlocking(false);
             channel.register(selector, SelectionKey.OP_READ);
@@ -283,7 +300,7 @@ public class Client {
             }
         }
         int i =0;
-        while(true){
+        /*while(true){
             ByteBuffer recvBuffer = ByteBuffer.allocate(MAXBUFFER);
             recvBuffer.clear();
 
@@ -295,7 +312,7 @@ public class Client {
                 System.out.println(ret);    
             }
             //i++;
-        }
+        }*/
     }
     public static void parseMasterMsg(String msg){
         String [] parts = msg.split("#");
@@ -320,7 +337,7 @@ public class Client {
         }
     }
     public static int parseResponse(String response, String reqType, int requestNumber){
-       //System.out.println("Response: " + response);
+        
 
         String [] parts = response.split("#");
         if(parts.length <=1){
@@ -333,6 +350,7 @@ public class Client {
             parseMasterMsg(response);
             return 0;
         }
+        System.out.println("Response: " + response);
         int outcome = Integer.parseInt(parts[2]);
         Double bal = Double.parseDouble(parts[3]);
         if(outcome == 0){
@@ -352,9 +370,6 @@ public class Client {
         return 1;
     }
     public static void main (String [] args) throws IOException{
-        double random = new Random().nextDouble();
-        dropRate = 0.0 + (random * (1.0 - 0.0));
-        
         parseArgs(args);
         createFile();
         sendRequests();

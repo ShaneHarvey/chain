@@ -99,6 +99,8 @@ class ClientInfo{
     String prob_deposit;
     String prob_withdraw;
     String prob_transfer;
+    String prob_failure = "0.0";
+    String msg_send_delay = "0.0";
     //String request;
     ArrayList<RequestInfo> requests;
     public ClientInfo(String t, String rr, String h){
@@ -137,7 +139,7 @@ public class ExecSimulation {
                 Object [] bankNames = banks.keySet().toArray();
                 for(int i = 0; i< bankNames.length; i++){
                     
-                    System.out.println(bankNames[i]);
+                    //System.out.println(bankNames[i]);
                     String bname = (String)bankNames[i];
                     BankInfo2 binfo = new BankInfo2(bname);
                     JSONObject banki = (JSONObject)banks.get(bname);
@@ -168,6 +170,9 @@ public class ExecSimulation {
                         //System.out.println("JSONArray");
                         JSONArray requests = (JSONArray) client_i.get("requests");
                         ClientInfo c = new ClientInfo(client_i.get("reply_timeout").toString(), client_i.get("request_retries").toString(), client_i.get("resend_head").toString());
+                        c.prob_failure = client_i.get("prob_failure").toString();
+                        c.msg_send_delay = client_i.get("msg_delay").toString();
+                        System.out.println("Successfully added prob failure and msg_send "+ c.prob_failure+ ","+ c.msg_send_delay);
                         ArrayList<RequestInfo> req_list = new ArrayList<RequestInfo>();
                         for (int j = 0; j < requests.size(); j++) {
                             JSONObject request_j = (JSONObject) requests.get(j);
@@ -215,10 +220,50 @@ public class ExecSimulation {
                 double lowerPercent = 0.0;
                 double upperPercent = 1.0;
                 double result;
+                String bankChainInfoMaster="";
+                for(int x = 0; x < BankArray.size(); x++){
+                    BankInfo2 analyze = BankArray.get(x);
+                    String chain= analyze.bank_name+"#";
+                    //analyze.servers
+                    for(int j = 0; j < analyze.servers.size(); j++){
+                        if(j == 0){
+                            chain+=analyze.servers.get(j).Port;
+                        }
+                        else{
+                            chain+="#"+analyze.servers.get(j).Port;
+                        }
+                    }
+                    if(x == 0){
+                        bankChainInfoMaster+= chain;
+                    }
+                    else{
+                        bankChainInfoMaster += "@"+chain;
+                    }
+                }
+                //System.out.println("CHAIN: "+ bankChainInfoMaster);
+                
+                String clientInfoMaster ="";
+                for(int x = 0; x < clientsList.size(); x++){
+                    ClientInfo analyze = clientsList.get(x);
+                    if(x ==0){
+                        clientInfoMaster+= analyze.PortNumber;
+                    }
+                    else{
+                        clientInfoMaster+="#"+ analyze.PortNumber;
+                    }
+                    
+                }
+                //System.out.println("Clients: "+ clientInfoMaster);
+                
+                //RUN MASTER HERE 
+                String masterExec = "java Master 49999 "+ clientInfoMaster +" "+ bankChainInfoMaster;
+                Process masterProcess = Runtime.getRuntime().exec(masterExec);
+                System.out.println(masterExec);
                 ArrayList<ServerInfoForClient> servInfoCli = new ArrayList<ServerInfoForClient>();
 
                 // List of all servers is saved so that we can wait for them to exit.
                 ArrayList<Process> serverPros = new ArrayList<Process>();
+                //ArrayList<String> execServs = new ArrayList<String>();
                 for(int i = 0 ; i < BankArray.size(); i++){
                     BankInfo2 analyze = BankArray.get(i);
                     //System.out.println(analyze.bank_name);
@@ -339,12 +384,12 @@ public class ExecSimulation {
                     int p = 60000+i;
                     if(analyze.isRandom){
                          execCommand = "java Client localhost:"+p+ " "+banksCliParam+" "+requestsString+ " "+ analyze.reply_timeout 
-                                + " " + analyze.request_retries + " " + analyze.resend_head + " " + analyze.prob_balance
+                                + " " + analyze.request_retries + " " + analyze.resend_head + " " +analyze.prob_failure + " "+ analyze.msg_send_delay +" " +analyze.prob_balance
                                 + "," + analyze.prob_deposit + ","+ analyze.prob_withdraw +","+ analyze.prob_transfer; 
                     }
                     else{
                        execCommand = "java Client localhost:"+p+ " "+banksCliParam+" "+requestsString+ " "+ analyze.reply_timeout 
-                                + " " + analyze.request_retries + " " + analyze.resend_head;
+                                + " " + analyze.request_retries + " " + analyze.resend_head + " " +analyze.prob_failure + " "+ analyze.msg_send_delay;
                      
                     }
                     Thread.sleep(500);
@@ -370,6 +415,8 @@ public class ExecSimulation {
                     serverPro.destroy();
                     System.out.println("Killed server.");
                 }
+                masterProcess.destroy();
+                System.out.println("Killed Master");
                 //System.out.println("asdf");
         }
         
