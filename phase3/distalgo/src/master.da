@@ -225,6 +225,9 @@ class Master(process):
 
     def print_init_settings():
         output('*** Initial settings ***')
+        for bank in chains:
+            output('Initial chain for bank=%s has %s servers' %
+                   (bank, len(chains[bank])))
         output('*** Initial settings ***')
 
     def tail(bankid):

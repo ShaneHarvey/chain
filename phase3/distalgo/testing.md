@@ -3,6 +3,29 @@ This is the documentation for each test file. It describes the objective
 of each configuration test file.
 
 
+###msg_loss.json
+    Objective: Tests ability of clients and servers to simulate message loss
+    1. Server1 starts as HEAD and TAIL with message loss at 25%
+    2. Client starts with loss also at 25%
+
+###head_fail.json
+    Objective: Tests ability to remove failed HEAD
+    1. 2 Servers start with zero delay.
+    2. The head fails after 1 second.
+    3. Master detects the failure due to a 0 ping count.
+    4. Master sends becomeHead to the second server.
+    5. Master sends updateHead to the client
+    6. Clients continues to issue requests.
+
+###tail_fail.json
+    Objective: Tests ability to remove failed TAIL
+    1. 2 Servers start with zero delay.
+    2. The tail fails after 1 second.
+    3. Master detects the failure due to a 0 ping count.
+    4. Master sends becomeTail to the first server.
+    5. Master sends updateTail to the client
+    6. Clients continues to issue requests.
+
 ###basic_extend.json
     Objective: Tests ability of master to extend the chain
     1. Server1 starts as HEAD and TAIL
