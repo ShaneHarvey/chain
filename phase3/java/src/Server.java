@@ -261,7 +261,7 @@ public class Server implements Runnable{
                 successorSock.connect(new InetSocketAddress("localhost",sServerPort ));
             } catch (IOException ex) {
                 writeToLog("Exception connection to new server. port" + sServerPort );
-                return;
+                //return;
                 //Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
             }
             System.out.println("Successfully relinked to successor");
