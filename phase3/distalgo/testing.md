@@ -8,6 +8,12 @@ of each configuration test file.
     1. Server1 starts as HEAD and TAIL with message loss at 25%
     2. Client starts with loss also at 25%
 
+###ack_check.json
+    Objective: Tests using ACKs to remove updates from Sent
+    1. Chain of 3 servers is started with one client.
+    2. Client issues deposits and withdrawal requests
+    3. ACKs are send from the TAIL and each server removes updates.
+
 ###head_fail.json
     Objective: Tests ability to remove failed HEAD
     1. 2 Servers start with zero delay.
@@ -15,7 +21,7 @@ of each configuration test file.
     3. Master detects the failure due to a 0 ping count.
     4. Master sends becomeHead to the second server.
     5. Master sends updateHead to the client
-    6. Clients continues to issue requests.
+    6. Client continues to issue requests.
 
 ###tail_fail.json
     Objective: Tests ability to remove failed TAIL
@@ -24,9 +30,20 @@ of each configuration test file.
     3. Master detects the failure due to a 0 ping count.
     4. Master sends becomeTail to the first server.
     5. Master sends updateTail to the client
-    6. Clients continues to issue requests.
+    6. Client continues to issue requests.
 
-###basic_extend.json
+###internal_fail.json
+    Objective: Tests ability to remove failed INTERNAL server
+    1. 3 Servers start with zero delay. (S-, S, S+)
+    2. The internal server (S) fails after 1 second.
+    3. Master detects the S failed due to a 0 ping count.
+    4. Master initiates internal failure algorithm
+    5. S+ sends last sequence to Master
+    6. Master forwards last seq to S-
+    7. S- forwards updates in SENT set with SEQ > last_seq
+    8. Client continues to issue requests.
+
+###chain_ext.json
     Objective: Tests ability of master to extend the chain
     1. Server1 starts as HEAD and TAIL
     2. Server2 starts after a 5 second delay. (sends join chain request)
@@ -35,7 +52,7 @@ of each configuration test file.
     5. Server2 sends newTail to Master
     6. Master sends updateTail to all the clients
 
-###abort_extend.json
+###graceful_abort.json
     Objective: Tests graceful abort of extension when the extending server fails
     1. Server1 starts as HEAD and TAIL
     2. Server2 starts after a 1 second delay. (sends join chain request)
@@ -48,7 +65,7 @@ of each configuration test file.
     9. Master sends becomeTail to Server1
    10. Master sends extendChain to Server1 due to queued request by Server3
    11. Server3 successfuly joins the chain.
-   12. A client issues requests the whole time.
+   12. Client issues requests the whole time.
 
 ##Format Guide for JSON Files (if needed)
 ```json

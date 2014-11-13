@@ -109,7 +109,8 @@ def main():
     print('masterpid=%s' % masterpid)
     setup(master, [all_chains, clients, os.path.join(logdir, 'master.log')])
     print('master=%s' % master)
-
+    config(channel='fifo', among=all_servers)
+    config(channel='fifo', among=master)
     start(all_servers)
     start(master)
     start(clients)

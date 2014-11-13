@@ -208,8 +208,9 @@ class Server(process):
         if s != successor:
             output('Received ACK from invalid server')
             return
-        output('Received ACK=%s' % ack)
         self.sent.remove(ack)
+        if not is_head:
+            log_send(('ACK', ack), predecessor)
 
     def process_update(update, seq):
         update_type, (reqid, account, amount) = update
@@ -368,19 +369,26 @@ class Sent:
         if not self.q:
             self.base = seq
         if seq != self.base + len(self.q):
-            logging.log('Invalid SEQ=%s for sent' % seq, level=logging.ERROR)
+            logging.error('Invalid SEQ=%s for sent' % seq)
             return
         self.q.append(update)
 
     def remove(self, ack):
+        r = []
         while self.q and ack >= self.base:
             self.q.pop()
+            r.append(str(self.base))
             self.base += 1
+        if r:
+            logging.info('Received ACK=%s removed SEQs %s from SENT' %
+                        (ack, ', '.join(r)))
+        else:
+            logging.info('Received ACK=%s, nothing to remove from SENT' % ack)
 
     def updates(self, ack):
         """Return a list of updates with seq starting at ack + 1."""
         if ack < self.base:
-            logging.log('Invalid ACK=%s for updates' % ack, level=logging.ERROR)
+            logging.error('Invalid ACK=%s for updates' % ack)
             return []
         else:
             return self.q[ack - self.base + 1:]
