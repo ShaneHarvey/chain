@@ -18,6 +18,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 class ReqObject{
@@ -47,6 +49,14 @@ class WithdrawalResponse{
         balance = b;
         flag = f;
     }
+}
+class SentPair{
+   Integer seq;
+   String req;
+   public SentPair(Integer s, String r){
+       seq = s;
+       req = r;
+   }
 }
 public class Server implements Runnable{
 
@@ -93,6 +103,7 @@ public class Server implements Runnable{
     public static String pound = "\n\n############################################################\n\n";
     public static HashMap<String, ReqObject> history;
     public static HashMap<Integer, String> sent;
+    public static ArrayList<String> sentExt = new ArrayList<String> (); 
     private static int start_delay;
     private static int lifetime;
     private static int receive;
@@ -101,6 +112,7 @@ public class Server implements Runnable{
     
     private static int messagesS = 0;
     private static int messagesR = 0;
+    private static boolean isExtending = false;
     /**
      * This method Parses the command line arguments and sets up the variables
      * that store the predecessor, successor, and master server
@@ -187,51 +199,90 @@ public class Server implements Runnable{
             System.out.println("New successor");
             sServerPort = Integer.parseInt(parts[2]);
             try {
-                successorSock.close();
-                successorSock.connect(new InetSocketAddress(sServerIP,sServerPort ));
-            } catch (IOException ex) {
-                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-            }
-            System.out.println("Successfully relinked to successor");
-        }
-        else if(parts[1].equals("NEWPRED")){
-            System.out.println("New predecessor");
-            pServerPort = Integer.parseInt(parts[2]);
-            try {
-                predecessorSock.close();
-                predecessorSock.connect(new InetSocketAddress(pServerIP,pServerPort ));
-            } catch (IOException ex) {
-                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-            }
-            System.out.println("Successfully relinked to predecessor");
-        }
-        else if(parts[1].equals("SERVSTATUS")){
-            //writeToLog();
-            System.out.println("New server position");
-            myPosition = ServerStatus.valueOf(parts[2]);
-            System.out.println(myPosition.toString());
-        }
-        else if(parts[1].equals("NEWSERV")){
-            System.out.println("New server wants to join");
-            sServerPort = Integer.parseInt(parts[2]);
-            try {
+                //successorSock.close();
                 successorSock = SocketChannel.open();
                 successorSock.connect(new InetSocketAddress(sServerIP,sServerPort ));
             } catch (IOException ex) {
                 Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
             }
             System.out.println("Successfully relinked to successor");
+            writeToLog( new Date() + ": New successor message received. Successfull relinked to port " + sServerPort);
+        }
+        else if(parts[1].equals("NEWPRED")){
+            System.out.println("New predecessor");
+            pServerPort = Integer.parseInt(parts[2]);
+            //predecessorSock.close();
+            predecessorSock = SocketChannel.open();
+            predecessorSock.connect(new InetSocketAddress(pServerIP,pServerPort ));
+            
+            System.out.println("Successfully relinked to predecessor");
+            writeToLog( new Date() + ": New predecessor message received. Successfull relinked to port " + pServerPort);
+        }
+        else if(parts[1].equals("SERVSTATUS")){
+            //writeToLog();
+            System.out.println("New server position");
+            
+            myPosition = ServerStatus.valueOf(parts[2]);
+            writeToLog(new Date() +": Master sent me new position: "+ myPosition.toString());
+            ServerStatus s = ServerStatus.valueOf(parts[2]);
+            if(s == ServerStatus.TAIL){
+                //clear sent set.
+                sent.clear();
+                writeToLog(new Date() + ": Became new tail. Clearing sent set.");
+            }
+            
+            System.out.println(myPosition.toString());
+            return;
+        }
+        else if(parts[1].equals("NEWSERV")){
+            System.out.println("New server wants to join");
+            writeToLog(new Date() + ": New server wants to join the chain. Port :" +parts[2]);
+            isExtending = true;
+            sServerPort = Integer.parseInt(parts[2]);
+            try {
+                successorSock = SocketChannel.open();
+                successorSock.connect(new InetSocketAddress(sServerIP,sServerPort ));
+            } catch (IOException ex) {
+                writeToLog("Exception connection to new client." );
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            System.out.println("Successfully relinked to successor");
+            //writeToLog(new Date() + ": New server wants to join the chain. Port :" +parts[2]);
             sendBank();
+            writeToLog(new Date() + ": Sent new server the bank state.");
+            sendHistory();
+            writeToLog(new Date() + ": Sent new server the history of requests");
+            sendSent();
+            writeToLog(new Date() + ": Sent new server the sent set");
+            if(myPosition == ServerStatus.HEAD_TAIL){
+                myPosition = ServerStatus.HEAD;
+            }
+            else{
+                myPosition = ServerStatus.MIDDLE;
+            }
+            isExtending = false;
+            sentExt.clear();
             String newData = "DONESENDING#"+bankName;
             ByteBuffer buf = ByteBuffer.allocate(100);
             buf.clear();
             buf.put(newData.getBytes());
             buf.flip();
-            try {
-                int byteSent = datagramChannel.send(buf, new InetSocketAddress("localhost", masterPort));
+            //int bytesSent = successorSock.write(buf);
+            //successorSock.close();
+            successorSock = SocketChannel.open();
+            successorSock.connect(new InetSocketAddress("localhost", sServerPort));
+            System.out.println("Connection to successor established");
+            messagesS++;
+            while (buf.hasRemaining()) {
+                successorSock.write(buf);
+            };
+            System.out.println("Done adding new chain.");
+            writeToLog(new Date() + ": Done adding new server. I am no longer the Tail.");
+            /*try {
+            int byteSent = datagramChannel.send(buf, new InetSocketAddress("localhost", masterPort));
             } catch (IOException ex) {
-                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }*/
             
         }
         else{
@@ -244,12 +295,12 @@ public class Server implements Runnable{
         while (entries.hasNext()) {
             Map.Entry<String, Double> entry = entries.next();
             String newData = "SETUP#"+ entry.getKey() + "#" + entry.getValue();
-            ByteBuffer buf = ByteBuffer.allocate(100);
+            ByteBuffer buf = ByteBuffer.allocate(1000);
             buf.clear();
             buf.put(newData.getBytes());
             buf.flip();
             //if (successorSock == null) {
-                successorSock.close();
+                //successorSock.close();
                 successorSock = SocketChannel.open();
                 successorSock.connect(new InetSocketAddress("localhost", sServerPort));
                 System.out.println("Connection to successor established");
@@ -260,6 +311,77 @@ public class Server implements Runnable{
             };
             writeToLog(new Date() + "Bank Account sent" + entry.getKey());
         }
+    }
+    public static void sendSent() throws IOException{
+       if(sentExt.isEmpty()){
+           System.out.println("sendExt is empty. Nothing to forward to client");
+           writeToLog(new Date() + ": sent set with extending change is empty. Noting to forward to new tail.");
+           return;
+       }
+       for(int i = 0; i < sentExt.size(); i++){
+          String req = sentExt.get(i);
+          req = req.replaceAll("#", "|");
+          String toSend = "SETUP3#"+ req;
+          System.out.println("sendSent: "+ toSend);
+          ByteBuffer buf = ByteBuffer.allocate(1000);
+            buf.clear();
+            buf.put(toSend.getBytes());
+            buf.flip();
+            
+            //successorSock.close();
+            successorSock = SocketChannel.open();
+            successorSock.connect(new InetSocketAddress("localhost", sServerPort));
+            System.out.println("Connection to successor established");
+
+            messagesS++;
+            while (buf.hasRemaining()) {
+                successorSock.write(buf);
+            }
+            writeToLog(new Date() + ": sent while extending sent.");
+       }
+    }
+    public static void sendHistory() throws IOException{
+       writeToLog(new Date() + ": Sending history.");
+       Iterator<Map.Entry<String, ReqObject>> entries = history.entrySet().iterator();
+       while(entries.hasNext()){
+            Map.Entry<String, ReqObject> entry = entries.next();
+            writeToLog(new Date() + ": Sending history entry.");
+            ReqObject target = entry.getValue();
+            String request = target.req;
+            request = request.replaceAll("#", "|");
+            String reply = target.reply;
+            reply = reply.replaceAll("#", "|");
+            String toFwd = "SETUP2#" + target.rid + "#"+ target.accountNum+"#"+target.amount+ "#"+target.outcome.toString()+"#"+target.balance + "#" + request +"#"+ reply; 
+            System.out.println("History: " + toFwd);
+            ByteBuffer buf = ByteBuffer.allocate(1000);
+            buf.clear();
+            buf.put(toFwd.getBytes());
+            buf.flip();
+            
+            //successorSock.close();
+            successorSock = SocketChannel.open();
+            successorSock.connect(new InetSocketAddress("localhost", sServerPort));
+            System.out.println("Connection to successor established");
+           
+            messagesS++;
+            while (buf.hasRemaining()) {
+                successorSock.write(buf);
+            }
+            writeToLog(new Date() + ": Bank History  entry sent");
+       }
+    }
+    public static void processDoneSending(){
+        String newData = "NEWTAIL#"+bankName;
+        ByteBuffer buf = ByteBuffer.allocate(100);
+        buf.clear();
+        buf.put(newData.getBytes());
+        buf.flip();
+        try {
+            int byteSent = datagramChannel.send(buf, new InetSocketAddress("localhost", masterPort));
+        } catch (IOException ex) {
+            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        writeToLog(new Date() + " New tail message sent to Master. I am the new tail now.");
     }
     public static void processAck(int ACK){
         if(myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
@@ -272,6 +394,7 @@ public class Server implements Runnable{
             Map.Entry<Integer, String> entry = entries.next();
             if(entry.getKey()<= ACK){
                 System.out.println("Removed ACK " + entry.getKey());
+                writeToLog(new Date() + ": Received ACK: " + ACK + " removing SEQ from sent " + entry.getKey());
                 toRemove.add(entry.getKey());
                 //sent.remove(entry.getKey());
             }
@@ -296,7 +419,7 @@ public class Server implements Runnable{
                 while (buf.hasRemaining()) {
                     predecessorSock.write(buf);
                 }
-                
+                 writeToLog(new Date() + ": Sending ACK: " + ACK + " to predecessor");
                 //predecessorSock.close();
                 //predecessorSock.write(buf);
             } catch (IOException ex) {
@@ -304,6 +427,31 @@ public class Server implements Runnable{
                 Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
+    }
+    public static void parseSetup2(String msg){
+        String [] parts = msg.split("#");
+        for(int i = 0; i < parts.length; i++){
+            parts[i] = parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
+        }
+        parts[6] = parts[6].replace("|", "#");
+        parts[7] = parts[7].replace("|", "#");
+        
+        ReqObject.Outcome a = ReqObject.Outcome.valueOf(parts[4]);
+        //public ReqObject(String r, String an, String rq, Double a, Outcome o, Double b, String rep)
+        ReqObject toAdd = new ReqObject(parts[1], parts[2], parts[6], Double.parseDouble(parts[3]), a, Double.parseDouble(parts[5]), parts[7]);
+        
+        history.put(parts[1], toAdd);
+        System.out.println("Processes new History element");
+    }
+    public static void parseSetup3(String msg) throws IOException{
+        String [] parts = msg.split("#");
+        for(int i = 0; i < parts.length; i++){
+            parts[i] = parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
+        }
+        parts[1] = parts[1].replace("|", "#");
+        parseRequest(parts[1], MessagesEnum.FWDTOSUCCESSOR );
     }
     /**
      * This function will parse the message recieved from the Sockets
@@ -339,9 +487,22 @@ public class Server implements Runnable{
         if(parts[0].equals("SETUP")){
             System.out.println("SETUP");
             double bal = Double.parseDouble(parts[2]);
-            bank.put(req,bal);
-            writeToLog(new Date() + "Setup Account number " + parts[1] + " balance $" + bal);
+            bank.put(parts[1],bal);
+            writeToLog(new Date() + ": Setup Account number " + parts[1] + " balance $" + bal);
             return -1;
+        }
+        if(parts[0].equals("SETUP2")){
+            System.out.println("SETUP2");
+            parseSetup2(req);
+            return -1;
+        }
+        if(parts[0].equals("DONESENDING")){
+            System.out.println("Done sending History received");
+            myPosition = ServerStatus.TAIL;
+            writeToLog(new Date() + " Received Done sending from old tail. Becoming new tail");
+            processDoneSending();
+            return -1;
+            
         }
         response += parts[1] + "#";
         if(parts[0].equals("ACK")){
@@ -365,13 +526,23 @@ public class Server implements Runnable{
             msgrecv = parts[0] + " request on account number " + rid[2] + " for the amount " + Double.parseDouble(parts[2]) +". From client "+rid[0]+".";
             if(myPosition != ServerStatus.TAIL && myPosition!= ServerStatus.HEAD_TAIL){
                 System.out.println("Put into sent SEQ = " + parts[3]);
+                writeToLog(new Date() + ": Putting SEQ = " + parts[3].trim() + " into sent.");
                 parts[3] = parts[3].trim();
                 sent.put(Integer.parseInt(parts[3]), req);
+            }
+            else if(isExtending){
+                System.out.println("Put into sentExt SEQ = " + parts[3]);
+                writeToLog(new Date() + ": Putting SEQ = " + parts[3].trim() + " into sent because we are extending the chain.");
+                parts[3] = parts[3].trim();
+                SentPair s = new SentPair(Integer.parseInt(parts[3]), req);
+                sentExt.add(req);
+                //sent.put(Integer.parseInt(parts[3]), req);
             }
             else if(myPosition == ServerStatus.TAIL){
                 try {
                     String toSend = "ACK#"+parts[3];
                     System.out.println("Sending ACK " + toSend);
+                    writeToLog(new Date() + ":  I am tail ACKing back = " + parts[3].trim() + " to predecessor.");
                     ByteBuffer buf = ByteBuffer.allocate(1000);
                     buf.clear();
                     buf.put(toSend.getBytes());
@@ -492,7 +663,7 @@ public class Server implements Runnable{
 
             }
         }
-        ReqObject insert = new ReqObject(parts[1], account_num, parts[0], amount, ReqObject.Outcome.Processed, ret, response);
+        ReqObject insert = new ReqObject(parts[1], account_num, req, amount, ReqObject.Outcome.Processed, ret, response);
         history.put(parts[1], insert);
         
         if(myPosition == ServerStatus.TAIL || myPosition == ServerStatus.HEAD_TAIL){
@@ -679,15 +850,28 @@ public class Server implements Runnable{
         }*/
         
         //Infinite loop to recieve queries and messages from server.
+        //System.out.println("send = "+ send + ", receive ="+ receive);
         while (true) {
+            //System.out.println("send = "+ send + ", receive ="+ receive);
+            //writeToLog("Message R" + messagesR);
+            if(messagesR > receive ){
+                System.out.println("Server is exiting. Maximum recevied messages reached. messagesR=" + messagesR + ",  receive="+ receive);
+                writeToLog(new Date() + " Received maximum number of message. Server is exiting...");
+                System.exit(0);
+            }
+            if(messagesS > send){
+                System.out.println("Server is exiting. Maximum send messages reached. messagesS=" + messagesS + ",  send="+ send);
+                writeToLog(new Date() + " Received maximum number of message. Server is exiting...");
+                System.exit(0);
+            }
             int n = selector.select();
             if (n == 0) {
                 //System.out.print(".");
                 continue;
             }
-
             Iterator it = selector.selectedKeys().iterator();
             while (it.hasNext()) {
+                //writeToLog("iterator read something. Inner loop");
                 SelectionKey key = (SelectionKey) it.next();
                 if (key.isAcceptable()) {
                     ServerSocketChannel server = (ServerSocketChannel) key.channel();
@@ -709,6 +893,17 @@ public class Server implements Runnable{
                     it.remove();
                 }
                 if (key.isReadable()) {
+                    messagesR++;
+                    if(messagesR > receive ){
+                        System.out.println("Server is exiting. Maximum recevied messages reached. messagesR=" + messagesR + ",  receive="+ receive);
+                        writeToLog(new Date() + " Received maximum number of message. Server is exiting...");
+                        System.exit(0);
+                    }
+                    if(messagesS > send){
+                        System.out.println("Server is exiting. Maximum send messages reached. messagesS=" + messagesS + ",  send="+ send);
+                        writeToLog(new Date() + " Received maximum number of message. Server is exiting...");
+                        System.exit(0);
+                    }
                     System.out.println("READABLE");
                     SocketChannel channel = null;
                     DatagramChannel ch = null;// = (DatagramChannel) key.channel();
@@ -742,6 +937,8 @@ public class Server implements Runnable{
                             System.out.println("bytes read: " + bytesRead + " " + ret);
                             if(pReqRet == -1){
                                 System.out.println("ACK or Master message");
+                                //writeToLog("TESTING IF I GET HERE Sock");
+                                it.remove();
                                 continue;
                             }
                             if (myPosition == ServerStatus.HEAD || myPosition == ServerStatus.MIDDLE) {
@@ -769,7 +966,7 @@ public class Server implements Runnable{
                             it.remove();
                             continue;        
                         }catch(IOException e){
-                            channel.close();
+                            //channel.close();
                         }
                     }
                     if (ch != null) {
@@ -779,6 +976,7 @@ public class Server implements Runnable{
                         ch.receive(buf);
                         String ret = new String(buf.array());
                         System.out.println("Data: " + ret);
+                        //writeToLog(new Date()+ ": read on sock: " + ret+" status: " +myPosition.toString());
                         if(myPosition == ServerStatus.HEAD){
                             ret = ret.trim();
                             System.out.println("Datagram Ch Request: "+ret);
@@ -786,9 +984,16 @@ public class Server implements Runnable{
                             //ret = ret.trim();
                             System.out.println("Datagram Ch Request: "+ ret);
                         }
-                        parseRequest(ret, MessagesEnum.DATACHANNELREAD);
+                        int pReqRet = parseRequest(ret, MessagesEnum.DATACHANNELREAD);
                         buf.flip();
-
+                        // parseRequest(ret, MessagesEnum.SOCKCHANNELREAD);
+                        //System.out.println("bytes read: " + bytesRead + " " + ret);
+                        if(pReqRet == -1){
+                            System.out.println("ACK or Master message");
+                            //writeToLog("TESTING IF I GET HERE Data");
+                            it.remove();
+                            continue;
+                        }
                         if(myPosition != ServerStatus.TAIL && myPosition != ServerStatus.HEAD_TAIL){
                             
                             System.out.println("Inside the resending to successor " +sServerPort);
@@ -836,7 +1041,7 @@ public class Server implements Runnable{
                 buf.flip();
 
                 int bytesSent = datagramChannel.send(buf, new InetSocketAddress("localhost", masterPort));
-                System.out.println("Ping Sent.");
+                //System.out.println("Ping Sent.");
             }
         } catch (IOException ex) {
             Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
@@ -876,6 +1081,20 @@ public class Server implements Runnable{
             } catch (IOException ex) {
                 Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
             }
+        }
+        System.out.println("lifetime :" + lifetime);
+        writeToLog(new Date() + ": Lifetime = " + lifetime);
+        if(lifetime > 0){
+           
+            System.out.println("Setup lifetime timeout");
+            Timer timer = new Timer();
+              timer.schedule(new TimerTask() {
+                public void run() {
+                  System.out.println("Exiting because lifetime reached");
+                  writeToLog(new Date() + ": Exiting because lifetime reached");
+                  System.exit(0);
+                }
+            }, lifetime*1000);
         }
         //(new Thread(new Server())).start();
         
