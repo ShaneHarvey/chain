@@ -52,6 +52,40 @@ of each configuration test file.
     5. Server2 sends newTail to Master
     6. Master sends updateTail to all the clients
 
+###internal_fail2.json
+    Objective: remove failed internal process S and remove its predecessor S- when S- fails during removal of S, immediately after learning which updates in Sent^S- should be forwarded to S+
+
+    1. 3 Servers start with zero delay. (S-, S, S+)
+    2. The internal server (S) fails after 1 second.
+    3. Master detects the S failed due to a 0 ping count.
+    4. Master initiates internal failure algorithm
+    5. S+ sends last sequence to Master
+    6. Master forwards last seq to S-
+    7. S- fails after receiving 'successorFailure'
+    8. Master detects the S- failed due to a 0 ping count.
+    9. Master tells S+ to become the HEAD
+   10. Client continues to issue requests.
+
+###internal_fail3.json
+    Objective: remove failed internal process S and remove its successor S+ when S+ fails during removal of S, immediately after receiving the updates in Sent^S-
+
+    1. 3 Servers start with zero delay. (S-, S, S+)
+    2. The internal server (S) fails after 1 second.
+    3. Master detects the S failed due to a 0 ping count.
+    4. Master initiates internal failure algorithm
+    5. S+ sends last sequence to Master
+    6. Master forwards last seq to S-
+    7. S- forwards updates in SENT set with SEQ > last_seq to S+
+    8. S+ fails after recieving Sent^S- (it's 5th message)
+    9. Master detects the S+ failed due to a 0 ping count.
+   10. Master tells S- to become the TAIL
+   11. Client continues to issue requests.
+
+###ext_tail_fail.json
+    Objective: chain extension when current tail fails during chain extension
+    Similiar to graceful_abort.json except we introduce that the tail will fail before sending "doneSending" to the new tail. Master detects the failure of
+    both servers and continues to extend the chain with the 4th server.
+
 ###graceful_abort.json
     Objective: Tests graceful abort of extension when the extending server fails
     1. Server1 starts as HEAD and TAIL

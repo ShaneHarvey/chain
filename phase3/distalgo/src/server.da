@@ -26,6 +26,8 @@ class Server(process):
         self.send_limit = conf['send']
         self.delay = conf['start_delay']
         self.msg_loss = conf['msg_loss'] if 'msg_loss' in conf else 0.0
+        self.fail_after_succ = conf['fail_after_succ'] if 'fail_after_succ' in conf else False
+        self.fail_on_ext = conf['fail_on_ext'] if 'fail_on_ext' in conf else False
         self.num_received = 0
         self.num_sent = 0
         # If the server is delayed then it is a special case
@@ -88,7 +90,9 @@ class Server(process):
         log_send(('bank', bank), new_tail)
 
 #        output('\n\nSENT %s\n\n' % self.sent.q)
-
+        if fail_on_ext:
+            output('Failing during extension before doneExtending is sent!')
+            sys.exit(1)
         # Send endOfUpdates
         log_send('doneExtending', new_tail)
         output('Sent doneExtending to %s' % new_tail)
@@ -149,6 +153,9 @@ class Server(process):
         output('Successor failed! New succ=%s, forwarding updates with SEQ>%s'
                % (new_succ, last_seq))
         successor = new_succ
+        if fail_after_succ:
+            output('Failing after first successorFailure message')
+            sys.exit(1)
         # TODO: Send updates > last_seq to new_succ
         for i, update in enumerate(self.sent.updates(last_seq)):
             fwd = ('fwdUpdate', last_seq + i + 1, update)
@@ -200,6 +207,8 @@ class Server(process):
         if SEQ != -1 and SEQ >= seq:
             output('Receive fwdUpdate: invalid SEQ', level=logging.ERROR)
             sys.exit(1)
+
+        log_recv(('fwdUpdate', seq, orig_update), p)
         # seq is strictly increasing
         self.SEQ = seq
         process_update(orig_update, seq)
