@@ -1,4 +1,5 @@
 import logging
+import random
 # Used as a 'bank'
 from collections import defaultdict
 # Decimal is used to store monetary values precisely
@@ -16,7 +17,7 @@ class Server(process):
         self.is_head = not predecessor
         self.is_tail = not successor
         self.sent = Sent()
-        self.SEQ = 0
+        self.SEQ = -1
         self.extending = False
         self.updates = dict()
         self.bank = defaultdict(int)
@@ -24,6 +25,7 @@ class Server(process):
         self.recv_limit = conf['receive']
         self.send_limit = conf['send']
         self.delay = conf['start_delay']
+        self.msg_loss = conf['msg_loss'] if 'msg_loss' in conf else 0.0
         self.num_received = 0
         self.num_sent = 0
         # If the server is delayed then it is a special case
@@ -195,7 +197,7 @@ class Server(process):
             # invalid from_
             output('IGNORE: fwdUpdate from invalid process %s' % p)
             return
-        if self.SEQ >= seq:
+        if SEQ != -1 and SEQ >= seq:
             output('Receive fwdUpdate: invalid SEQ', level=logging.ERROR)
             sys.exit(1)
         # seq is strictly increasing
@@ -230,9 +232,8 @@ class Server(process):
 
     def inc_seq():
         """Return SEQ++."""
-        cur = self.SEQ
         self.SEQ += 1
-        return cur
+        return self.SEQ
 
     def withdrawal(account, amount):
         # withdrawal his $$$
@@ -256,8 +257,8 @@ class Server(process):
 
     def fwd_update(seq, orig_msg, reply, client):
         if is_tail:
-            # Reply to the client
-            log_send(reply, client)
+            # Reply to the client with simulated message loss
+            log_send(reply, client, True)
             if predecessor:
                 log_send(('ACK', seq), predecessor)
         else:
@@ -334,11 +335,14 @@ class Server(process):
             output('Server has no message send constraint')
         output('*** Initial settings ***')
 
-    def log_send(message, dest):
+    def log_send(message, dest, simulate_loss=False):
         """Log a message to dest and increment sent."""
         num_sent += 1
         output('Sending #%s: %s to=%s\n' % (str(num_sent), str(message),
                                             str(dest)))
+        if simulate_loss and random.random() < msg_loss:
+            output('Simulated message drop!')
+            return
         send(message, to=dest)
 
     def log_recv(message, source):
@@ -361,11 +365,11 @@ class Sent:
         self.q = []
 
     def add(self, seq, update):
-        if seq != self.base + len(self.q):
-            output('Invalid SEQ=%s for sent' % seq, level=logging.ERROR)
-            return
         if not self.q:
             self.base = seq
+        if seq != self.base + len(self.q):
+            logging.log('Invalid SEQ=%s for sent' % seq, level=logging.ERROR)
+            return
         self.q.append(update)
 
     def remove(self, ack):
@@ -376,7 +380,7 @@ class Sent:
     def updates(self, ack):
         """Return a list of updates with seq starting at ack + 1."""
         if ack < self.base:
-            output('Invalid ACK=%s for updates' % ack, level=logging.ERROR)
+            logging.log('Invalid ACK=%s for updates' % ack, level=logging.ERROR)
             return []
         else:
             return self.q[ack - self.base + 1:]
