@@ -23,12 +23,12 @@ Each run generates a unique directory inside `logs/` to place all process log fi
 
 Example
 ```bash
-$ dar main.da ../config/banks.json
+$ dar main.da ../config/basic.json
 ```
 
-Creates the directory `logs/banks_X/` to contain each process' log file, where X
-is the next highest number out of the diectories named `logs/banks_X/`.
-Ex: `logs/banks_1/` is created initially then, `logs/banks_2/`, `logs/banks_3/`, etc...
+Creates the directory `logs/basic_X/` to contain each process' log file, where X
+is the next highest number out of the diectories named `logs/basic_X/`.
+Ex: `logs/basic_1/` is created initially then, `logs/basic_2/`, `logs/basic_3/`, etc...
 
 Server process logs are named `server_BANKNAME_X.log` where X is the servers
 intitial position in the chain, X=1 being the head server and X=n being the
@@ -44,10 +44,6 @@ src/client.da
 src/server.da
 ```
 
-##BUGS AND LIMITATIONS
-None? :)
-
-
 ##CONTRIBUTIONS
 Shane Harvey and Soumadip Mukherjee design the pseudo code for this project.
 After understanding the design, we decided to spilt the work mostly by language.
@@ -62,4 +58,3 @@ To this end, we believe we distributed the work about evenly and total time spen
 each implementation was similar.
 
 ##OTHER COMMENTS
-None?
