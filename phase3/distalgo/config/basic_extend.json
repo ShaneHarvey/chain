@@ -6,15 +6,15 @@
           "ip": "localhost",
           "port": 50000,
           "start_delay": 0,
-          "lifetime": 10,
+          "lifetime": 11,
           "receive": -1,
           "send": -1
         },
         {
           "ip": "localhost",
           "port": 50001,
-          "start_delay": 1,
-          "lifetime": 11,
+          "start_delay": 5,
+          "lifetime": 6,
           "receive": -1,
           "send": -1
         }
@@ -27,6 +27,7 @@
       "request_retries": 3,
       "resend_head": false,
       "req_delay": 2.0,
+      "msg_loss": 0.01,
       "requests": [
         {
           "request": "deposit",

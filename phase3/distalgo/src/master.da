@@ -21,10 +21,11 @@ class Master(process):
         logfile -- relative path of the logging file
         """
         # {"JP": [JPServer], "Chase": [ChaseServer]}
-        self.running = True
         self.chains = dict()
+        self.extend = dict()
         for bank in banks:
             self.chains[bank] = [Server(bank, s) for s in banks[bank]]
+            self.extend[bank] = []
 
     def main():
         """
@@ -47,23 +48,53 @@ class Master(process):
                 if serv.pid == server:
                     serv.pings += 1
                     break
+            for serv in extend[bankname]:
+                if serv.pid == server:
+                    serv.pings += 1
+                    break
 
     def receive(msg=('joinChain', bankname), from_=new_tail):
         output('Received joinChain: bank=%s, server=%s' % (bankname, new_tail))
-        cur_tail = tail(bankname)
+        extend[bankname].append(Server(bankname, new_tail))
+        if len(extend[bankname]) == 1:
+            extend_chain(bankname)
+        else:
+            output('Existing server is joining, buffered joinChain ' +
+                   'request by %s' % new_tail)
+
+    def extend_chain(bank):
+        """Send extendChain with the first Server in extend."""
+        cur_tail = tail(bank)
         if cur_tail:
+            new_tail = extend[bank][0].pid
             mesg = ('extendChain', new_tail)
             output('Sending extendChain to current tail=%s' % cur_tail)
             send(mesg, to=cur_tail)
         else:
-            output('Bank %s does not have a server chain!' % bankname)
+            output('Bank %s does not have a server chain!' % bank)
+
+    def extend_failure(bank, server):
+        output('Extension Failure: bank=%s, server=%s' % (bank, server))
+        # Must send becomeTail to current tail because of the failed extension
+        cur_tail = tail(bank)
+        output('Sending becomeTail to bank=%s cur_tail=%s' % (bank, cur_tail))
+        send('becomeTail', to=cur_tail)
+        # If there is another server waiting start the extension
+        if extend[bank]:
+            extend_chain(bank)
 
     def receive(msg=('newTail', bankname), from_=new_tail):
         output('Received newTail: bank=%s, new tail=%s' % (bankname, new_tail))
-        # TODO: lock chains
-        chains[bankname].append(Server(bankname, new_tail))
+        # Remove from extend list
+        if extend[bankname] and extend[bankname][0].pid == new_tail:
+            chains[bankname].append(extend[bankname].pop())
+            update_tail(bankname, new_tail)
+            # If there is another server waiting start the extension
+            if extend[bankname]:
+                extend_chain(bankname)
+        else:
+            output('Received invalid newTail, extending Server not found')
         ##################
-        update_tail(bankname, new_tail)
 
     def receive(msg=('newSucc', (pred, last_seq)), from_=new_succ):
         """Handle the case of internal server failure.
@@ -84,6 +115,7 @@ class Master(process):
     def failure_check():
         """Check if any servers have failed and send appropriate messages."""
         # TODO: lock for chain modification
+        output('Checking for server failure.')
         num_alive = 0
         for bank in chains:
             # Skip banks with empty chains
@@ -104,9 +136,12 @@ class Master(process):
             num_alive += len(alive)
             # Handle complete failure of a chain
             if not alive:
-                output('Critical: All servers for bank %s have halted.' % bank)
+                output('All servers for bank %s have halted.' % bank,
+                       level=logging.WARNING)
                 chains[bank] = []
-                # TODO: Tell clients that this chain has failed
+                # Tell clients that this chain has failed
+                update_tail(bank, None)
+                update_head(bank, None)
                 continue
 
             # Skip if all servers are alive
@@ -134,6 +169,20 @@ class Master(process):
                     send(('predecessorFailure', new_pred), to=new_succ)
             # Remove the failed servers
             chains[bank] = [chains[bank][i] for i in alive]
+
+        # Check that the servers buffered in extend are still alive
+        for bank in extend:
+            if extend[bank]:
+                extendServ = extend[bank][0].pid
+                alive = []
+                for i, serv in enumerate(extend[bank]):
+                    if serv.is_alive():
+                        alive.append(i)
+                    serv.reset_pings()
+                extend[bank] = [extend[bank][i] for i in alive]
+                if not alive or alive[0] != 0:
+                    extend_failure(bank, extendServ)
+
         if num_alive == 0:
             send('Terminate', to=self.id)
         # TODO: Release lock on chains
@@ -193,7 +242,7 @@ class Server:
     def __init__(self, bank, pid):
         self.bank = bank
         self.pid = pid
-        self.pings = 0
+        self.pings = 1
 
     def is_alive(self):
         """Alive servers must have at least one ping in the last period."""

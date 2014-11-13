@@ -3,73 +3,29 @@ This is the documentation for each test file. It describes the objective
 of each configuration test file.
 
 
-###basic.json
-    Objective: Tests basic bank functionality
-    One server and one client are started.
-    The client issues a deposit, balance, withdrawal, and balance requests
-    on a single account.
+###basic_extend.json
+    Objective: Tests ability of master to extend the chain
+    1. Server1 starts as HEAD and TAIL
+    2. Server2 starts after a 5 second delay. (sends join chain request)
+    3. Master sends extendChain to Server1
+    4. Server1 fowards updates and bank information to Server2
+    5. Server2 sends newTail to Master
+    6. Master sends updateTail to all the clients
 
-###chain.json
-    Objective: Test server chain functionality
-    One bank with a chain of 3 servers and one client are started.
-    The client issues a deposit, balance, withdrawal, and balance requests
-    on a single account. (Same as the basic.json test)
-
-###random_client.json
-    Objective: Test that client can generate random requests
-    One bank with a chain of 3 servers and one client are started.
-    The client issues 5 random requests.
-
-###clients.json
-    Objective: Test that multiple clients can be instantiated
-    One bank with a chain of 2 servers and 3 clients are started.
-    2 clients issue random requests, the other issues the same request
-    sequence the basic.json client
-
-###banks.json
-    Objective: Test that clients can interact with multiple bank chains
-    3 banks with chains of varying and 5 clients are started.
-    All 5 clients issue random requests.
-
-###insufficient.json
-    Objective: Test that insufficient funds works correctly
-    One bank with a chain of 3 servers and one client are started.
-    The client issues a deposit on $1337.00 into account '0001'. Next,
-    the client issues a withdrawal of $1337.01 from account '0001' which
-    should be illegal. The client should receive an insufficient funds reply.
-    Lastly, the client issues a balance request on the same account.
-
-###duplicate.json
-    Objective: Test that duplicate request identification works correctly
-    One bank with a chain of 3 servers and one client are started.
-    First, the client issues a deposit on $111.00 into account '0001'.
-    Second, the client issues a deposit of $222.00 into account '0001'.
-    Third, the client issues the exact same request as the first which
-    should be detected and the tail will resend the original reply stating
-    that account '0001' has a balance of $111.00.
-    Finally, the client issues a balance request on the same account to verify
-    that the balance is actually $333.00.
-
-###inconsistent.json
-    Objective: Test that inconsistent request identification works correctly
-    One bank with a chain of 3 servers and one client are started.
-    First, the client issues a deposit on $111.00 into account '0001'.
-    Second, the client issues a deposit of $222.00 into account '0001'.
-    Third, the client issues the exact same request as the first **except that
-    the amount is changed to $123.45** which should be detected and the tail
-    will send an INCONSISTENT reply stating that account '0001' has a balance
-    of $333.00.
-    Fourth, the client issues a withdrawal request with the same reqID as the
-    first. This should also trigger an INCONSISTENT reply.
-    Finally, the client issues a balance request on the same account to verify
-    that the balance is actually $333.00.
-
-
-###test1.json and test2.json
-    Used for developement testing
-
-
-
+###abort_extend.json
+    Objective: Tests graceful abort of extension when the extending server fails
+    1. Server1 starts as HEAD and TAIL
+    2. Server2 starts after a 1 second delay. (sends join chain request)
+    3. Master sends extendChain to Server1
+    4. Server3 starts after a 2 second delay. (sends join chain request)
+    5. Master Buffers the 2nd join chain request, Server3 waits.
+    6. Server2 fails after recieving the first message from Server1
+    7. Server1 does not know of the failure and sets successor to Server2
+    8. Master detects that Server2 has failed during extension.
+    9. Master sends becomeTail to Server1
+   10. Master sends extendChain to Server1 due to queued request by Server3
+   11. Server3 successfuly joins the chain.
+   12. A client issues requests the whole time.
 
 ##Format Guide for JSON Files (if needed)
 ```json
@@ -98,6 +54,10 @@ of each configuration test file.
   "clients": [
 // Each json object is the configuration for a single client
     {
+      //This is the time to wait inbetween each request
+      "req_delay": 2.0,
+      // Simulated drop percentage of sent and received messages
+      "msg_loss": 0.01,
       "reply_timeout": 3,
       "request_retries": 3,
       "resend_head": false,
