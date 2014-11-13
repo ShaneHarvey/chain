@@ -291,7 +291,13 @@ class Server(process):
             # We have processed this reqid already
             if req_msg == get_prev_mesg(reqid):
                 # DUPLICATE RESEND ORIGIN
-                output('DUPLICATE REQUEST: resending original reply')
+                if is_tail:
+                    output('DUPLICATE REQUEST detected, resending original ' +
+                           'reply to client.')
+
+                else:
+                    output('DUPLICATE REQUEST detected, forwarding request ' +
+                           'to successor')
                 return get_prev_reply(reqid)
             else:
                 # Inconsistent
@@ -381,15 +387,14 @@ class Sent:
             self.base += 1
         if r:
             logging.info('Received ACK=%s removed SEQs %s from SENT' %
-                        (ack, ', '.join(r)))
+                         (ack, ', '.join(r)))
         else:
             logging.info('Received ACK=%s, nothing to remove from SENT' % ack)
 
     def updates(self, ack):
         """Return a list of updates with seq starting at ack + 1."""
         if ack < self.base:
-            logging.error('Invalid ACK=%s for updates' % ack)
-            return []
+            return self.q
         else:
             return self.q[ack - self.base + 1:]
 
