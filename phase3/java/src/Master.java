@@ -137,6 +137,7 @@ public class Master implements Runnable{
         String [] parts = msg.split("#");
         for(int i = 0; i < parts.length; i++){
             parts[i] = parts[i].replace("#", "");
+            parts[i] = parts[i].trim();
         }
         if(parts[0].equals("PING")){
             receivePing(parts[1]);
@@ -162,6 +163,7 @@ public class Master implements Runnable{
         BankChain target = bankChains.get(parts[1]);
         target.chain.add(target.requestToJoinPort);
         target.requestToJoinPort = -1;
+        writeToLog("New server that was joining has finished joining and is not the new tail. Port " + target.requestToJoinPort);
         String broadcast = "MASTER#" + target.bankName+ "#TAIL#"+ target.getTail();
         sendNewTail(broadcast);
     }
@@ -211,6 +213,11 @@ public class Master implements Runnable{
             parts[i] = parts[i].replace("#", "");
             parts[i] = parts[i].trim();
         }
+        receivePing(parts[1].trim()+":"+parts[2].trim());
+        //pings.put(msg, myPort)
+        //System.out.println(parts[1]+":" +parts[2]);
+        //String b_port = parts[1].trim()+":"+parts[2];
+        //pings.put(b_port, 1);
         BankChain target = bankChains.get(parts[1]);
         int tailPort = target.getTail();
         if(tailPort != -1){
@@ -329,23 +336,43 @@ public class Master implements Runnable{
             if(entry.getValue() == 0){//change to one for testing if you want
                 //try {
                     //We did not get a ping in the last 5 seconds
-                    writeToLog("Server " + entry.getValue() + " is no longer alive.");
-                    System.out.println("Server " + entry.getKey() + " is no longer alive.");
+                   
                     String [] parse = entry.getKey().split(":");
                     for(int i = 0; i< parse.length; i++){
                         parse[i] = parse[i].replace(":", "");
                         parse[i] = parse[i].trim();
                         System.out.println(parse[i]);
                     }
+                    writeToLog("Server " + parse[0]+":"+parse[1] + " is no longer alive.");
+                    System.out.println("Server " + parse[0]+":"+parse[1] + " is no longer alive.");
                     
-                    
+                    if(bankChains.get(parse[0]).requestToJoinPort == Integer.parseInt(parse[1])){
+                        System.out.println("New joining server failed.");
+                        writeToLog("Server that was joining "+ parse[0]+ " failed. Port " + parse[1]);
+                        toRemove.add(entry.getKey());
+                        String newData = "MASTER#JOINFAIL";
+                        ByteBuffer buf = ByteBuffer.allocate(48);
+                        buf.clear();
+                        buf.put(newData.getBytes());
+                        buf.flip();
+                        try {
+                            System.out.println("Joining server failed. Sending message to tail of bank"+ parse[0]+ ".");
+                            int tailPort = bankChains.get(parse[0]).getTail();
+                            int bytesSent = channel.send(buf, new InetSocketAddress("localhost", tailPort));
+                        } catch (IOException ex) {
+                            System.out.println("Failed to send client new Tail message on port");
+                            //Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        bankChains.get(parse[0]).requestToJoinPort = -1;
+                        continue;
+                    }
 
                     int pPort = bankChains.get(parse[0]).getPredecessorPort(Integer.parseInt(parse[1]));
                     int sPort = bankChains.get(parse[0]).getSuccessorPort(Integer.parseInt(parse[1]));
-                    //bankChains.get(parse[0]).removeServer(Integer.parseInt(parse[1]));
+
                     
                     System.out.println("pPort = " + pPort + ", sPort = " + sPort);
-                    writeToLog("pPort = " + pPort + ", sPort = " + sPort);
+                    //writeToLog("pPort = " + pPort + ", sPort = " + sPort);
                     ServerStatus loc = bankChains.get(parse[0]).getServerStatus(Integer.parseInt(parse[1]));
                     bankChains.get(parse[0]).removeServer(Integer.parseInt(parse[1]));
                     /*if(pPort == -1){
@@ -405,6 +432,12 @@ public class Master implements Runnable{
                         } catch (IOException ex) {
                            writeToLog("TAIL server failure error to send msg.");
                             Logger.getLogger(Master.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        if(bankChains.get(parse[0]).requestToJoinPort != -1){
+
+                            String toResend = "JOIN#"+bankChains.get(parse[0]).bankName.trim()+"#"+bankChains.get(parse[0]).requestToJoinPort;
+                            receiveJoin(toResend);
+                            writeToLog("Tail server failed while extending chain. Sending joing to new tail.");
                         }
                     }
                     else if( (sPort != -1 && sPort != bankChains.get(parse[0]).getTail() )&& pPort == -1){
@@ -490,8 +523,13 @@ public class Master implements Runnable{
                     parse[i] = parse[i].trim();
                     System.out.println(parse[i]);
                 }
-                boolean temp = bankChains.get(parse[0]).isServPresent(Integer.parseInt(parse[1]));
-                writeToLog("is present : " + temp);
+                //boolean temp = bankChains.get(parse[0]).isServPresent(Integer.parseInt(parse[1]));
+                //writeToLog("is present : " + temp);
+                if(Integer.parseInt(parse[1]) == bankChains.get(parse[0]).requestToJoinPort){
+                    System.out.println("New joining bank chain");
+                    writeToLog("Joing bank chain received a ping");
+                    continue;
+                }
                 if(bankChains.get(parse[0]).isServPresent(Integer.parseInt(parse[1])) == false){
                     bankChains.get(parse[0]).chain.add(Integer.parseInt(parse[1]));
                     writeToLog("New server added to chain port" + entry.getKey());
