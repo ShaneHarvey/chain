@@ -1,6 +1,7 @@
 import random
 import logging
 from time import sleep
+import sys
 
 const = import_da('const')
 
@@ -26,7 +27,7 @@ class Client(process):
             self.prob_balance = conf['requests']['prob_balance']
             self.prob_deposit = conf['requests']['prob_deposit']
             self.prob_withdrawal = conf['requests']['prob_withdrawal']
-            # self.prob_transfer = conf['requests']['prob_transfer']
+            self.prob_transfer = conf['requests']['prob_transfer']
         elif isinstance(conf['requests'], list):
             self.r_index = 0
             self.req_list = conf['requests']
@@ -68,12 +69,17 @@ class Client(process):
         output('\tReceived message #%s: %s from=%s' % \
             (str(num_received), str(('reply', (reqid, outcome, acc, bal))), str(tail)))
 
-    def send_request(request):
-        reqid = request['reqid']
-        if request['request'] == 'balance':
-            return send_query(request['request'], reqid, request['account'], request['bank'])
+    def send_request(r):
+        reqid = r['reqid']
+        if r['request'] == 'balance':
+            return send_query('balance', reqid, r['account'], r['bank'])
+        elif r['request'] in ['deposit', 'withdrawal']:
+            return send_update(r['request'], r['bank'], reqid, (r['account'], r['amount']))
+        elif r['request'] == 'transfer':
+            return send_update('transfer', r['bank'], reqid, (r['account'], r['amount'], r['dest_bank'], r['dest_account']))
         else:
-            return send_update(request['request'], reqid, request['account'], request['amount'], request['bank'])
+            output("Invalid request type %s, check config file." % r['request'], level=logging.ERROR)
+            sys.exit(1)
 
     def send_query(query, reqid, account, bank):
         for i in range(request_retries):
@@ -92,13 +98,13 @@ class Client(process):
         output('Giving up after sending request %s times' % request_retries)
         return None
 
-    def send_update(update, reqid, account, amount, bank):
+    def send_update(update, bank, reqid, args):
         for i in range(request_retries):
             head = banks[bank]['head']
             if not head:
                 return None
 
-            message = (update, (reqid, account, amount))
+            message = (update, (reqid,) + args)
             # LOG and send
             log_send(message, head)
             if await(some((rreqid, outcome, acc, bal) in replies, has=(rreqid == reqid))):
@@ -136,6 +142,7 @@ class Client(process):
             return req
 
     def gen_rand_req():
+        request = dict()
         # We ran out of requests
         if num_req <= 0:
             return False
@@ -146,15 +153,23 @@ class Client(process):
             rtype = 'balance'
         elif num < prob_balance + prob_deposit:
             rtype = 'deposit'
-        else:
+        elif num < prob_balance + prob_deposit + prob_withdrawal:
             rtype = 'withdrawal'
+        else:
+            rtype = 'transfer'
 
-        request = dict()
         request['request'] = rtype
-        request['bank'] = random.choice([b for b in banks])
+        request['bank'] = random.choice(list(banks.keys()))
         request['account'] = str(random.randrange(0, 10001))
         request['amount'] = "%.2f" % random.uniform(0, 10001)
         request['reqid'] = gen_reqid(request['account'])
+        if rtype == 'transfer':
+            if len(banks.keys()) > 1:
+                request['dest_bank'] = random.choice(list(banks.keys()-{request['bank']}))
+                request['dest_account'] = str(random.randrange(0, 10001))
+            else:
+                output('Cannot transfer with only one bank chain!')
+                sys.exit(1)
         return request
 
     def setup_logfile():
