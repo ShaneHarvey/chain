@@ -37,7 +37,7 @@ class Server(process):
             predecessor = None
             successor = None
 
-    def main():
+    def run():
         setup_logfile()
         print_init_settings()
 

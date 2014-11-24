@@ -1,4 +1,4 @@
-          CSE535: Asynchronous Systems            2014-11-05
+          CSE535: Asynchronous Systems            2014-11-14
        Scott Stoller, Stony Brook University
 
           Project: Chain Replication
@@ -132,6 +132,9 @@ UPDATES
   However, the client should send the request only to a server of the
   source bank; the client should not need to send a request to a server of
   the destination bank.
+
+  [UPDATE 2014-11-14] for simplicity, you can assume that all transfers are
+  between two different banks.
 
 ============================================================
 SIMPLIFICATIONS
@@ -456,6 +459,24 @@ similarity to the pseudo-code, and any other comments on the strengths and
 weaknesses of the languages for various types of programming.  ideas for
 language improvements are also welcome.
 
+COMMENTS:
+
+It is reasonable to assume that the entire Sent list can be sent at once.
+however, during chain extension, you should not assume that the entire
+current state can be sent at once. you should send it in pieces, e.g., one
+account at a time (since the transaction history for an account could be
+large).
+
+To thoroughly test chain extension, you need to create testcases in which
+the old tail processes some updates while sending the state to the new
+tail.  this might not happen naturally, since the state of the service in
+the testcases is small.  one way to overcome this is to insert an
+artificial delay (controlled by options in the configuration file) in the
+code for chain extension, causing the old tail to delay between sending the
+data for each account.  generally, you are free to add delays wherever
+necessary to facilitate testing.  all delays should be controlled through
+the configuration file,
+
 ------------------------------------------------------------ 
 PHASE 4: TRANSFERS
 
@@ -543,7 +564,8 @@ oct 20 problem set 1
 oct 24 midterm exam
 nov 12 phase 3: fault-tol svc (4.3 wks after phase2 - 1.5 wks for hw1&exam = 2.8 wks)
   [UPDATE 2014-11-04: changed phase 3 due date from nov 7 to nov 12]
-nov 21 phase 4: transfers (1.3 weeks)
+nov 24 phase 4: transfers (1.7 weeks)
+  [UPDATE 2014-11-14: changed phase 4 due date from nov 21 to nov 24]
 dec 5 problem set 2 last day of class
 dec 17 8am-10:45am (incl 15min for exam admin) final exam
 
@@ -628,9 +650,20 @@ prepared to indicate which testcase covers each requirement.  The TA will
 keep track of this using the grading sheet, available under Documents on
 Blackboard.  The TA may ask you to run additional testcases.
 
-Ill-prepared teams that try to invent testcases during the demo are likely
-to run out of time.  only partial credit will be given for functionality
-not demonstrated during the demo.
+All expected activity must be shown clearly in readable and detailed logs,
+otherwise points will be deducted for inadequate logs and for functionality
+that cannot be adequately evaluated due to inadequate logs.  Only partial
+credit will be given for functionality not demonstrated during the
+allocated demo timeslot, so you must run and explain your testcases
+efficiently.  All necessary configuration files should be created in
+advance.
+
+For convenience, each team's demos for phases 3 and 4 will be done in a
+single demo session held after the phase 4 due date.  In other words, you
+will download phase 3 from Blackboard, demo it, download phase 4, and demo
+it.  This does not affect due dates or grading weights.  It just simplifies
+logistics: you need to sign up for and show up for one longer demo session
+instead of two shorter ones.
 
 ============================================================
 DEMO SIGNUP    [UPDATE 2014-10-13: added this section]

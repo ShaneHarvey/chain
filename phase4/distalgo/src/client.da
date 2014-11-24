@@ -33,7 +33,7 @@ class Client(process):
         else:
             assert False, 'Error: Invalid conf format: Client "requests" is not a list or dict'
 
-    def main():
+    def run():
         """
         Main execution of this process. Sequentially prepare a request (either
         randomly or from the specified request list), send the request, and

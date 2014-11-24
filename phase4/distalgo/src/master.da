@@ -27,7 +27,7 @@ class Master(process):
             self.chains[bank] = [Server(bank, s) for s in banks[bank]]
             self.extend[bank] = []
 
-    def main():
+    def run():
         """
         Coordinate setup of bank chains then, monitor each chain until all
         servers fail.
