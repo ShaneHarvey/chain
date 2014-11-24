@@ -1,0 +1,77 @@
+{
+  "banks": {
+    "Chase": {
+      "chain": [
+        {
+          "ip": "localhost",
+          "port": 50000,
+          "start_delay": 0,
+          "lifetime": 6,
+          "receive": -1,
+          "send": -1
+        }
+      ]
+    },
+    "TD": {
+      "chain": [
+        {
+          "ip": "localhost",
+          "port": 50003,
+          "start_delay": 0,
+          "lifetime": 6,
+          "receive": 25,
+          "send": -1
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "reply_timeout": 3,
+      "request_retries": 3,
+      "resend_head": false,
+      "requests": [
+        {
+          "request": "deposit",
+          "bank": "Chase",
+          "account": "0001",
+          "amount": "150.00",
+          "seq_num": 0
+        },
+        {
+          "request": "balance",
+          "bank": "Chase",
+          "account": "0001",
+          "seq_num": 1
+        },
+        {
+          "request": "balance",
+          "bank": "TD",
+          "account": "0001",
+          "seq_num": 2
+        },
+        {
+          "request": "transfer",
+          "bank": "Chase",
+          "account": "0001",
+          "amount": "100.00",
+          "dest_bank": "TD",
+          "dest_account":"0002",
+          "seq_num": 3
+        },
+        {
+          "request": "balance",
+          "bank": "Chase",
+          "account": "0001",
+          "seq_num": 4
+        },
+        {
+          "request": "balance",
+          "bank": "TD",
+          "account": "0001",
+          "seq_num": 5
+        }
+      ]
+    }
+  ]
+}
