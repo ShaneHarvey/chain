@@ -14,7 +14,7 @@ class Client(process):
         self.num_sent = 0
         self.seq = 0
         self.rand_req = False
-        self.valid_reqs = ['balance', 'deposit', 'withdrawal']
+        self.valid_reqs = ['balance', 'deposit', 'withdrawal', 'transfer']
         # Parse conf
         self.req_delay = conf['req_delay'] if 'req_delay' in conf else 0.0
         self.msg_loss = conf['msg_loss'] if 'msg_loss' in conf else 0.0
