@@ -1,0 +1,116 @@
+import glob
+import json
+import re
+import sys
+import os
+
+m = import_da('master')
+c = import_da('client')
+s = import_da('server')
+const = import_da('const')
+
+
+def parse_config(file_name):
+    with open(file_name) as f:
+        data = json.load(f)
+        bank_dict = data['banks']
+        client_list = data['clients']
+    return (bank_dict, client_list)
+
+
+def create_log_dir(config_file):
+    """Create a log directory and return the relative path."""
+    testdir = os.path.join(const.LOG_DIR,
+                           os.path.splitext(os.path.basename(config_file))[0])
+    p = re.compile(r'.*_(\d+)$')
+    nums = []
+    for file_name in glob.glob(testdir + '_[0-9]*'):
+        ma = p.match(file_name)
+        if ma:
+            nums.append(int(ma.group(1)))
+    num = max(nums) + 1 if nums else 1
+    logdir = testdir + '_' + str(num)
+    # make log dir
+    os.makedirs(logdir)
+    return logdir
+
+
+def main():
+    """Usage: main.da [test_file.json]
+    """
+    global c, s
+    # parse config to find bank servers and number of clients
+    config_file = sys.argv[1] if len(sys.argv) > 1 else '../config/basic.json'
+    logdir = create_log_dir(config_file)
+    bank_dict, client_list = parse_config(config_file)
+    if not client_list:
+        print('Error: empty client list from file %s' % config_file)
+        sys.exit(1)
+    master = new(m.Master, num=1)
+    masterpid = None
+    for x in master:
+        masterpid = x
+        break
+    all_chains = dict()
+    all_servers = set()
+    # init bank object which is passed to each client
+    banks = dict()
+    # First setup the server chain for each bank
+    for bank_name in bank_dict:
+        config_slist = bank_dict[bank_name]['chain']
+        if not config_slist:
+            print('Error: bank %s from file %s has no server config' %
+                  (bank_name, config_file))
+            sys.exit(1)
+        print('Creating %s servers for %s bank' %
+              (len(config_slist), bank_name))
+        servers = new(s.Server, num=len(config_slist))
+        for each_s in servers:
+            all_servers.add(each_s)
+        # Setup the chain for a single bank
+        no_delays = [c for c in config_slist if c['start_delay'] == 0]
+        if not no_delays:
+            print('Error: bank %s: at least one server must have 0 delay!' %
+                  bank_name)
+            sys.exit(1)
+        delays = [c for c in config_slist if c['start_delay'] != 0]
+
+        init_chain = [servers.pop() for i in range(len(no_delays))]
+        all_chains[bank_name] = init_chain
+        logid = 1
+        pred = None
+        for serv, serv_conf in zip(init_chain, no_delays):
+            logname = '_'.join(['server', bank_name, str(logid)]) + '.log'
+            logfile = os.path.join(logdir, logname)
+            # Determine next server in the chain
+            succ = init_chain[logid] if logid < len(init_chain) else None
+            setup(serv, [masterpid, pred, succ, bank_name, serv_conf, logfile])
+            pred = serv
+            logid += 1
+        # Save head and tail to banks dictionary
+        banks[bank_name] = {'head': init_chain[0], 'tail': init_chain[-1]}
+        # setup the delayed servers
+        for serv, serv_conf in zip(servers, delays):
+            logname = '_'.join(['server', bank_name, str(logid)]) + '.log'
+            logfile = os.path.join(logdir, logname)
+            setup(serv, [masterpid, None, None, bank_name, serv_conf, logfile])
+            logid += 1
+
+    # Now setup the clients
+    clients = new(c.Client, num=len(client_list))
+    logid = 1
+    for cli, cli_conf in zip(clients, client_list):
+        logfile = os.path.join(logdir, 'client_' + str(logid) + '.log')
+        # pass bank["Chase"] : {head: head_s, tail: tail_s}
+        setup(cli, [masterpid, banks, cli_conf, logfile])
+        logid += 1
+
+    # Now setup master with intitial servers and clients
+    print('masterpid=%s' % masterpid)
+    setup(master, [all_chains, clients, os.path.join(logdir, 'master.log')])
+    print('master=%s' % master)
+    config(channel='fifo', among=all_servers)
+    config(channel='fifo', among=master)
+    start(all_servers)
+    start(master)
+    start(clients)

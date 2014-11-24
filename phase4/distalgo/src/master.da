@@ -1,0 +1,255 @@
+import logging
+import threading
+from time import sleep
+const = import_da('const')
+
+
+class Master(process):
+
+    """
+    Master monitors all banks to detect failures and handle chain updates.
+
+    Master handles join chain requests, failure detection, and failure
+    notification for servers in the chain and to clients.
+    """
+
+    def setup(banks, clients, logfile):
+        """Setup the master server.
+
+        heads -- a dict of  of all the clients in the simulation.
+        clients -- a set of DA ids of all the clients in the simulation.
+        logfile -- relative path of the logging file
+        """
+        # {"JP": [JPServer], "Chase": [ChaseServer]}
+        self.chains = dict()
+        self.extend = dict()
+        for bank in banks:
+            self.chains[bank] = [Server(bank, s) for s in banks[bank]]
+            self.extend[bank] = []
+
+    def main():
+        """
+        Coordinate setup of bank chains then, monitor each chain until all
+        servers fail.
+        """
+        setup_logfile()
+        print_init_settings()
+        fail_thread = threading.Thread(target=failure_detection, daemon=True)
+        fail_thread.start()
+        # Wait for all servers of all banks to fail
+        await(received('Terminate'))
+        output("All servers have failed, terminating...")
+
+    def receive(msg=('ping', bankname), from_=server):
+        """Update the ping count of the server."""
+        output('Received ping: bank=%s, server=%s' % (bankname, server))
+        if bankname in chains:
+            for serv in chains[bankname]:
+                if serv.pid == server:
+                    serv.pings += 1
+                    break
+            for serv in extend[bankname]:
+                if serv.pid == server:
+                    serv.pings += 1
+                    break
+
+    def receive(msg=('joinChain', bankname), from_=new_tail):
+        output('Received joinChain: bank=%s, server=%s' % (bankname, new_tail))
+        extend[bankname].append(Server(bankname, new_tail))
+        if len(extend[bankname]) == 1:
+            extend_chain(bankname)
+        else:
+            output('Existing server is joining, buffered joinChain ' +
+                   'request by %s' % new_tail)
+
+    def extend_chain(bank):
+        """Send extendChain with the first Server in extend."""
+        cur_tail = tail(bank)
+        if cur_tail:
+            new_tail = extend[bank][0].pid
+            mesg = ('extendChain', new_tail)
+            output('Sending extendChain to current tail=%s' % cur_tail)
+            send(mesg, to=cur_tail)
+        else:
+            output('Bank %s does not have a server chain!' % bank)
+
+    def extend_failure(bank, server):
+        output('Extension Failure: bank=%s, server=%s' % (bank, server))
+        # Must send becomeTail to current tail because of the failed extension
+        cur_tail = tail(bank)
+        output('Sending becomeTail to bank=%s cur_tail=%s' % (bank, cur_tail))
+        send('becomeTail', to=cur_tail)
+        # If there is another server waiting start the extension
+        if extend[bank]:
+            extend_chain(bank)
+
+    def receive(msg=('newTail', bankname), from_=new_tail):
+        output('Received newTail: bank=%s, new tail=%s' % (bankname, new_tail))
+        # Remove from extend list
+        if extend[bankname] and extend[bankname][0].pid == new_tail:
+            chains[bankname].append(extend[bankname].pop())
+            update_tail(bankname, new_tail)
+            # If there is another server waiting start the extension
+            if extend[bankname]:
+                extend_chain(bankname)
+        else:
+            output('Received invalid newTail, extending Server not found')
+        ##################
+
+    def receive(msg=('newSucc', (pred, last_seq)), from_=new_succ):
+        """Handle the case of internal server failure.
+
+        pred -- the pid of the alive predecessor of new_succ
+        last_seq -- the sequence number of the last update new_succ received
+        """
+        # Tell predecessor to update his successor with SEQ of latest update
+        mesg = ('successorFailure', (new_succ, last_seq))
+        output('Sending successorFailure to pred=%s' % pred)
+        send(mesg, to=pred)
+
+    def failure_detection():
+        while True:
+            sleep(5.0)
+            failure_check()
+
+    def failure_check():
+        """Check if any servers have failed and send appropriate messages."""
+        # TODO: lock for chain modification
+        output('Checking for server failure.')
+        num_alive = 0
+        for bank in chains:
+            # Skip banks with empty chains
+            if not chains[bank]:
+                continue
+            # Holds the ordered indexes of the alive servers
+            alive = []
+            chainlen = len(chains[bank])
+            # TODO: think about correctness due to threading.
+            #       In particular, what happens if a chain is updated during
+            #       this check
+            for i, serv in enumerate(chains[bank]):
+                output('Checking server %s, pings=%s' % (serv.pid, serv.pings))
+                if serv.is_alive():
+                    alive.append(i)
+                serv.reset_pings()
+
+            num_alive += len(alive)
+            # Handle complete failure of a chain
+            if not alive:
+                output('All servers for bank %s have halted.' % bank,
+                       level=logging.WARNING)
+                chains[bank] = []
+                # Tell clients that this chain has failed
+                update_tail(bank, None)
+                update_head(bank, None)
+                continue
+
+            # Skip if all servers are alive
+            if len(alive) == len(chains[bank]):
+                continue
+
+            # Handle Head failure
+            if alive[0] != 0:
+                new_head = chains[bank][alive[0]].pid
+                failed_head(bank, new_head)
+            # Handle Tail failure
+            if alive[-1] != chainlen - 1:
+                new_tail = chains[bank][alive[-1]].pid
+                failed_tail(bank, new_tail)
+            # Handle failure in the chain
+            prev = alive[0]
+            for cur in alive[1:]:
+                if cur != prev + 1:
+                    # The internal server(s) between prev and cur have failed
+                    new_pred = chains[bank][prev].pid
+                    new_succ = chains[bank][cur].pid
+                    # Just inform the successor that his predecessor has failed
+                    output('Internal server failed! Informing new successor=%s'
+                           % new_succ)
+                    send(('predecessorFailure', new_pred), to=new_succ)
+            # Remove the failed servers
+            chains[bank] = [chains[bank][i] for i in alive]
+
+        # Check that the servers buffered in extend are still alive
+        for bank in extend:
+            if extend[bank]:
+                extendServ = extend[bank][0].pid
+                alive = []
+                for i, serv in enumerate(extend[bank]):
+                    if serv.is_alive():
+                        alive.append(i)
+                    serv.reset_pings()
+                extend[bank] = [extend[bank][i] for i in alive]
+                if not alive or alive[0] != 0:
+                    extend_failure(bank, extendServ)
+
+        if num_alive == 0:
+            send('Terminate', to=self.id)
+        # TODO: Release lock on chains
+
+    def failed_head(bank, new_head):
+        """Handle failure of head server."""
+        output('Warning: Head of bank %s has failed.' % bank)
+        output('Sending becomeHead bank=%s newHead=%s' % (bank, new_head))
+        send('becomeHead', to=new_head)
+        update_head(bank, new_head)
+
+    def failed_tail(bank, new_tail):
+        """Handle failure of tail server."""
+        output('Warning: Tail of bank=%s has failed.' % bank)
+        output('Sending becomeTail bank=%s newTail=%s' % (bank, new_tail))
+        send('becomeTail', to=new_tail)
+        update_tail(bank, new_tail)
+
+    def update_head(bank, new_head):
+        """Message all clients of a new head server."""
+        mesg = ('updateHead', (bank, new_head))
+        output('Sending updateHead to all clients')
+        send(mesg, to=clients)
+
+    def update_tail(bank, new_tail):
+        """Message all clients of a new tail server."""
+        mesg = ('updateTail', (bank, new_tail))
+        output('Sending updateTail to all clients')
+        send(mesg, to=clients)
+
+    def setup_logfile():
+        rootlog = logging.getLogger('')
+        filelvl = logging.INFO
+        fh = logging.FileHandler(logfile)
+        formatter = logging.Formatter('[%(asctime)s]%(name)s: %(message)s')
+        fh.setFormatter(formatter)
+        fh.setLevel(filelvl)
+        rootlog._filelvl = filelvl
+        rootlog.addHandler(fh)
+
+    def print_init_settings():
+        output('*** Initial settings ***')
+        for bank in chains:
+            output('Initial chain for bank=%s has %s servers' %
+                   (bank, len(chains[bank])))
+        output('*** Initial settings ***')
+
+    def tail(bankid):
+        """Find and return the tail of a bank's chain."""
+        if bankid in chains and chains[bankid]:
+            return chains[bankid][-1].pid
+        else:
+            return None
+
+
+class Server:
+
+    """Contains info about a bank server in a chain."""
+
+    def __init__(self, bank, pid):
+        self.bank = bank
+        self.pid = pid
+        self.pings = 1
+
+    def is_alive(self):
+        """Alive servers must have at least one ping in the last period."""
+        return self.pings > 0
+
+    def reset_pings(self):
+        self.pings = 0
