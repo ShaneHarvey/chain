@@ -13,7 +13,7 @@ const = import_da('const')
 
 class Server(process):
 
-    def setup(master, predecessor, successor, bank_name, conf, logfile):
+    def setup(master, predecessor, successor, bank_name, conf, logfile, banks):
         self.is_head = not predecessor
         self.is_tail = not successor
         self.sent = Sent()
@@ -72,6 +72,18 @@ class Server(process):
             sleep(1.0)
             output('Sending ping to master')
             send(('ping', bank_name), to=master)
+
+    # Methods to update head/tail of other bank chains
+    def receive(msg=('updateHead', (b, new_head)), from_=m):
+        if m == master and b in banks:
+            output('Updating head of bank=%s to server=%s' % (b, new_head))
+            banks[b]['head'] = new_head
+
+    def receive(msg=('updateTail', (b, new_tail)), from_=m):
+        if m == master and b in banks and b != bank:
+            output('Updating tail of bank=%s to server=%s' % (b, new_tail))
+            banks[b]['tail'] = new_tail
+    # End methods to update head/tail of other bank chains
 
     # Methods for extending the chain
     def join_chain():

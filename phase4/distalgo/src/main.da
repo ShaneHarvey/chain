@@ -38,7 +38,8 @@ def create_log_dir(config_file):
 def main():
     """Usage: main.da [test_file.json]
     """
-    global c, s
+    global c, s, m
+    config(channel='fifo')
     # parse config to find bank servers and number of clients
     config_file = sys.argv[1] if len(sys.argv) > 1 else '../config/basic.json'
     logdir = create_log_dir(config_file)
@@ -55,7 +56,8 @@ def main():
     all_servers = set()
     # init bank object which is passed to each client
     banks = dict()
-    # First setup the server chain for each bank
+    # First figure out the head and tail of each bank
+    bank_args = []
     for bank_name in bank_dict:
         config_slist = bank_dict[bank_name]['chain']
         if not config_slist:
@@ -84,7 +86,8 @@ def main():
             logfile = os.path.join(logdir, logname)
             # Determine next server in the chain
             succ = init_chain[logid] if logid < len(init_chain) else None
-            setup(serv, [masterpid, pred, succ, bank_name, serv_conf, logfile])
+            bank_args.append((serv, [masterpid, pred, succ, bank_name,
+                              serv_conf, logfile]))
             pred = serv
             logid += 1
         # Save head and tail to banks dictionary
@@ -93,8 +96,13 @@ def main():
         for serv, serv_conf in zip(servers, delays):
             logname = '_'.join(['server', bank_name, str(logid)]) + '.log'
             logfile = os.path.join(logdir, logname)
-            setup(serv, [masterpid, None, None, bank_name, serv_conf, logfile])
+            bank_args.append((serv, [masterpid, None, None, bank_name,
+                              serv_conf, logfile]))
             logid += 1
+
+    # Now setup all the banks with their args
+    for serv, setup_args in bank_args:
+        setup(serv, setup_args + [banks])
 
     # Now setup the clients
     clients = new(c.Client, num=len(client_list))
@@ -108,9 +116,6 @@ def main():
     # Now setup master with intitial servers and clients
     print('masterpid=%s' % masterpid)
     setup(master, [all_chains, clients, os.path.join(logdir, 'master.log')])
-    print('master=%s' % master)
-    config(channel='fifo', among=all_servers)
-    config(channel='fifo', among=master)
     start(all_servers)
     start(master)
     start(clients)

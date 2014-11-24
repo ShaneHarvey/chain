@@ -204,14 +204,25 @@ class Master(process):
     def update_head(bank, new_head):
         """Message all clients of a new head server."""
         mesg = ('updateHead', (bank, new_head))
-        output('Sending updateHead to all clients')
+        output('Sending updateHead to all clients and servers')
         send(mesg, to=clients)
+        sendto_all_servers(mesg)
 
     def update_tail(bank, new_tail):
         """Message all clients of a new tail server."""
         mesg = ('updateTail', (bank, new_tail))
-        output('Sending updateTail to all clients')
+        output('Sending updateTail to all clients and servers')
         send(mesg, to=clients)
+        sendto_all_servers(mesg)
+
+    def sendto_all_servers(mesg):
+        for bankname in chains:
+            # send to servers in this chain
+            for p in chains[bankname]:
+                send(mesg, to=p.pid)
+            # send to servers in this extend chain
+            for p in extend[bankname]:
+                send(mesg, to=p.pid)
 
     def setup_logfile():
         rootlog = logging.getLogger('')
