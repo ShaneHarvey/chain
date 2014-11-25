@@ -448,9 +448,6 @@ class SentTransfer:
         self.trans = {}
 
     def isEmpty(self):
-        if len(self.trans) == 0:
-            return True
-        else:
-            return False
+        return len(self.trans)
 
 
