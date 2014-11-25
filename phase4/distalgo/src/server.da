@@ -325,7 +325,7 @@ class Server(process):
                    (account, amount, bank[account]))
         else:
             outcome = const.INSUFFICIENT_FUNDS
-            output('INSUFFICIENT FUNDS: account %s cannot withdraw $%s' %
+            output('INSUFFICIENT FUNDS: account %s balance $%s, cannot withdraw $%s' %
                    (account, bank[account], amount))
         return outcome
 

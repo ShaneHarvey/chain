@@ -46,7 +46,7 @@ class Client(process):
         while req:
             prettyprint_request(req)
             reply = send_request(req)
-            prettyprint_reply(reply)
+            prettyprint_reply(reply, req['bank'])
             req = get_request()
             # Sleep for req_delay seconds
             sleep(req_delay)
@@ -228,19 +228,19 @@ class Client(process):
             output('Sending request: %s, %s $%s account %s' %
                    (bank_n, req_type, amount, account))
 
-    def prettyprint_reply(reply):
+    def prettyprint_reply(reply, bank_name):
         if reply:
             outcome, acc, bal = reply
             if outcome == const.PROCESSED:
-                output('Reply: PROCESSED request, account %s, current balance $%s\n'
-                       % (acc, bal))
+                output('Reply: PROCESSED request, bank %s, account %s, current balance $%s\n'
+                       % (bank_name, acc, bal))
             elif outcome == const.INCONSISTENT:
-                output('Reply: INCONSISTENT WITH HISTORY, account %s, current balance $%s\n'
-                       % (acc, bal))
+                output('Reply: INCONSISTENT WITH HISTORY, bank %s, account %s, current balance $%s\n'
+                       % (bank_name, acc, bal))
             elif outcome == const.INSUFFICIENT_FUNDS:
-                output('Reply: INSUFFICIENT FUNDS, account %s, current balance $%s\n'
-                       % (acc, bal))
+                output('Reply: INSUFFICIENT FUNDS, bank %s, account %s, current balance $%s\n'
+                       % (bank_name, acc, bal))
             else:
-                output('Unkown outcome %s, account %s, balance $%s\n' % (outcome, acc, bal))
+                output('Unkown outcome %s, bank %s, account %s, balance $%s\n' % (bank_name, outcome, acc, bal))
         else:
             output('Request could not be processed at this time.\n')
