@@ -79,6 +79,12 @@ class Server(process):
         if m == master and b in banks:
             output('Updating head of bank=%s to server=%s' % (b, new_head))
             banks[b]['head'] = new_head
+            # Resend transfer request to the new HEAD
+            pending = trans_sent.getPendingTransfers(b)
+            for orig_trans in pending:
+                # Forward destTransfer request to the destination bank
+                output('RESENDING PENDING TRANSFER')
+                init_destTrans(b, orig_trans)
 
     def receive(msg=('updateTail', (b, new_tail)), from_=m):
         if m == master and b in banks and b != bank:
@@ -349,25 +355,29 @@ class Server(process):
             self.sent.add(seq, orig_msg)
 
     def fwd_transfer(seq, reqid, account, amount, dest_bank, dest_account, reply):
-        orig_msg = ('transfer', (reqid, account, amount, dest_bank, dest_account))
+        orig_trans = ('transfer', (reqid, account, amount, dest_bank, dest_account))
         if is_tail:
             # If inconsistent just reply to client and ACK back
             if reply[1][1] == const.INSUFFICIENT_FUNDS:
                 log_send(('transACK', reqid), self.id)
                 return
             # Forward destTransfer request to the destination bank
-            dest_head = banks[dest_bank]['head']
-            if dest_head:
-                # Send the destTransfer to the head of the dest bank
-                log_send(('destTransfer', (reqid, dest_account, amount, bank_name)), dest_head)
-            else:
-                output('Transfer error: destination bank %s failed!' % dest_bank)
+            init_destTrans(dest_bank, orig_trans)
         else:
             # Forward the update to successor
-            log_send(('fwdUpdate', seq, orig_msg), successor)
+            log_send(('fwdUpdate', seq, orig_trans), successor)
         # TODO: Add updates to sent transfers
         if not is_tail or extending:
-            self.trans_sent.add(orig_msg)
+            self.trans_sent.add(orig_trans)
+
+    def init_destTrans(dest_bank, orig_trans):
+        reqid, account, amount, dest_bank, dest_account = orig_trans[1]
+        dest_head = banks[dest_bank]['head']
+        if dest_head:
+            # Send the destTransfer to the head of the dest bank
+            log_send(('destTransfer', (reqid, dest_account, amount, bank_name)), dest_head)
+        else:
+            output('Transfer error: destination bank %s failed!' % dest_bank)
 
     def fwd_destTrans(seq, destTrans):
         if is_tail:
@@ -569,6 +579,9 @@ class SentTransfer:
             return self.reqid_to_seq[rreq]
         else:
             return None
+
+    def getPendingTransfers(self, bank_name):
+        return [t for t in self.trans.values() if t[1][3] == bank_name]
 
     def clear(self):
         self.trans = {}
