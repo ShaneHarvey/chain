@@ -277,13 +277,11 @@ class Server(process):
             # Send transACK to the previous server in chain
             log_send(('transACK', orig_seq), successor)
 
-
-
     def process_update(update, seq):
         update_type = update[0]
-        if update == 'transfer':
+        if update_type == 'transfer':
             reqid, account, amount, dest_bank, dest_account = update[1]
-        elif update == 'destTransfer':
+        elif update_type == 'destTransfer':
             reqid, account, amount, orig_bank = update[1]
         else:
             reqid, account, amount = update[1]
@@ -306,9 +304,9 @@ class Server(process):
             # Save this update to our update history
             add_to_updates(reqid, update, reply)
         # forward the update
-        if update == 'transfer':
+        if update_type == 'transfer':
             fwd_transfer(seq, reqid, account, amount, dest_bank, dest_account, reply)
-        elif update == 'destTransfer':
+        elif update_type == 'destTransfer':
             fwd_destTrans(seq, update)
         else:
             fwd_update(seq, update, reply, reqid[0])
@@ -375,8 +373,8 @@ class Server(process):
                 log_send(('ACK', seq), predecessor)
             else:
                 # Send the Reply to the Tail of the original bank
-                reqid, account, amount, orig_bank, orig_seq = destTrans[1]
-                send_destTransReply(orig_seq, orig_bank)
+                reqid, account, amount, orig_bank = destTrans[1]
+                send_destTransReply(reqid, orig_bank)
         else:
             # Forward the update to successor
             log_send(('fwdUpdate', seq, destTrans), successor)
@@ -384,11 +382,11 @@ class Server(process):
         if not is_tail or extending:
             self.sent.add(seq, destTrans)
 
-    def send_destTransReply(orig_seq, orig_bank):
+    def send_destTransReply(reqid, orig_bank):
         # Get the current tail of the source bank
         src_tail = banks[orig_bank]['tail']
         if src_tail:
-            log_send(('transACK', orig_seq), src_tail)
+            log_send(('transACK', reqid), src_tail)
         else:
             output('Transfer error: source bank %s has failed.' % orig_bank)
 
@@ -479,12 +477,14 @@ class Server(process):
                (str(num_received), str(message), str(source)))
 
     def log_bank():
-        strbank = ['\nBank State:', 'ACCOUNT \t BALANCE']
+        output(bank_name + ' Bank State:')
+        output('ACCOUNT \t BALANCE')
         for acc in sorted(bank.keys()):
             bal = bank[acc]
             strbal = '0.00' if bal == 0 else str(bal)
-            strbank.append('%s \t\t $%s' % (acc, strbal))
-        output('\n'.join(strbank))
+            output('%s \t\t $%s' % (acc, strbal))
+        if not bank:
+            output('NO ACCOUNTS :(')
 
 
 class Sent:
