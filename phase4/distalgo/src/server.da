@@ -269,7 +269,6 @@ class Server(process):
             trans_sent.remove(real_seq)
             # Reply to client with reply from updates and send transACK
             reply = get_prev_reply(rreq)
-            output('RECEIVED REPLY FROM DEST BANK. SENDING REPLY TO CLIENT')
             log_send(reply, rreq[0])
         if successor:
             # remove transfer from sent
@@ -352,6 +351,10 @@ class Server(process):
     def fwd_transfer(seq, reqid, account, amount, dest_bank, dest_account, reply):
         orig_msg = ('transfer', (reqid, account, amount, dest_bank, dest_account))
         if is_tail:
+            # If inconsistent just reply to client and ACK back
+            if reply[1][1] == const.INSUFFICIENT_FUNDS:
+                log_send(('transACK', reqid), self.id)
+                return
             # Forward destTransfer request to the destination bank
             dest_head = banks[dest_bank]['head']
             if dest_head:
