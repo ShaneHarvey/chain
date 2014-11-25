@@ -95,10 +95,10 @@
       "resend_head": false,
       "requests": {
         "seed": 2865189,
-        "num_requests": 5,
-        "prob_balance": 0.5,
-        "prob_deposit": 0.3,
-        "prob_withdrawal": 0.2,
+        "num_requests": 10,
+        "prob_balance": 0.1,
+        "prob_deposit": 0.4,
+        "prob_withdrawal": 0.5,
         "prob_transfer": 0.0
       }
     },
@@ -109,9 +109,9 @@
       "requests": {
         "seed": 345634,
         "num_requests": 10,
-        "prob_balance": 0.3,
+        "prob_balance": 0.1,
         "prob_deposit": 0.6,
-        "prob_withdrawal": 0.1,
+        "prob_withdrawal": 0.3,
         "prob_transfer": 0.0
       }
     }
