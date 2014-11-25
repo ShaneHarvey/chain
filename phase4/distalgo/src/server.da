@@ -111,7 +111,7 @@ class Server(process):
         output('Sending account balances to %s' % new_tail)
         # Send the bank
         log_send(('bank', bank), new_tail)
-
+        log_send(('pending', pending_transfers), new_tail)
 #        output('\n\nSENT %s\n\n' % self.sent.q)
         if fail_on_ext:
             output('Failing during extension before doneExtending is sent!')
@@ -131,6 +131,10 @@ class Server(process):
     def receive(msg=('bank', b), from_=old_tail):
         output('Received account balance from current tail.')
         bank = b
+
+    def receive(msg=('pending', pending_transfers), from_=old_tail):
+        output('Received pending transfers current tail.')
+        trans_sent = pending_transfers
 
     def receive(msg='doneExtending', from_=old_tail):
         """Notify master to finish the chain extension."""
