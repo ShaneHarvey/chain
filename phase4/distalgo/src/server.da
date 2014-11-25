@@ -79,12 +79,13 @@ class Server(process):
         if m == master and b in banks:
             output('Updating head of bank=%s to server=%s' % (b, new_head))
             banks[b]['head'] = new_head
-            # Resend transfer request to the new HEAD
-            pending = trans_sent.getPendingTransfers(b)
-            for orig_trans in pending:
-                # Forward destTransfer request to the destination bank
-                output('RESENDING PENDING TRANSFER')
-                init_destTrans(b, orig_trans)
+            if is_tail:
+                # Resend transfer request to the new HEAD
+                pending = trans_sent.getPendingTransfers(b)
+                for orig_trans in pending:
+                    # Forward destTransfer request to the destination bank
+                    output('RESENDING PENDING TRANSFER')
+                    init_destTrans(b, orig_trans)
 
     def receive(msg=('updateTail', (b, new_tail)), from_=m):
         if m == master and b in banks and b != bank:
