@@ -589,7 +589,7 @@ class SentTransfer:
             # Delete the reqid to sequence mapping
             del self.reqid_to_seq[transfer[1][0]]
             del self.trans[transfer_ack]
-            logging.info('Received Transfer ACK=%s removed Transfer SEQ %s from transfer set' % transfer_ack)
+            logging.info('Received Transfer ACK=%s and removed transfer from sent' % transfer_ack)
         else:
             logging.info('Received Transfer ACK=%s, nothing to remove from Tranfer sent' % transfer_ack)
             transfer = None
