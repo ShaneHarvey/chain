@@ -492,13 +492,23 @@ class Server(process):
                                             str(dest)))
         if simulate_loss and random.random() < msg_loss:
             output('Simulated message drop!')
-            return
-        send(message, to=dest)
+        else:
+            send(message, to=dest)
+        if num_sent == send_limit:
+            output('Server reached message send limit of %s' % send_limit)
+            log_bank()
+            output("Terminating..")
+            sys.exit(1)
 
     def log_recv(message, source):
         num_received += 1
         output('Received message #%s: %s from=%s' %
                (str(num_received), str(message), str(source)))
+        if num_received == recv_limit:
+            output('Server reached message receive limit of %s' % recv_limit)
+            log_bank()
+            output("Terminating..")
+            sys.exit(1)
 
     def log_bank():
         output(bank_name + ' Bank State:')
