@@ -513,31 +513,26 @@ class Sent:
 class SentTransfer:
     def __init__(self):
         self.trans_base = 1 #transfer sequence number, ie the key in the dictionary
-        self.trans = [] #dictionary iteself
+        self.trans = {} #dictionary itself
 
-    def add(self, t_seq, transfer):
-        if not self.trans:
-            self.trans_base = t_seq
-            self.trans_base += 1
-        if t_seq != self.trans_base + len(self.trans):
-            logging.error('Invalid Transfer SEQ=%s for sent transfer' %t_seq)
-            return
-        self.trans.append(transfer)
+    def add(self, transfer):
+        self.trans_base += 1
+        self.trans[self.tans_base] = transfer
 
     def remove(self, transfer_ack):
         if transfer_ack in self.trans:
+            transfer = self.trans[transfer_ack]
             del self.trans[transfer_ack]
             logging.info('Received Transfer ACK=%s removed Transfer SEQ %s from transfer set' %transfer_ack)
         else:
-            logging.info('Received Transfer ACK=%s, noting to remove from Tranfer sent' %transfer_ack)
+            logging.info('Received Transfer ACK=%s, nothing to remove from Tranfer sent' %transfer_ack)
+            transfer = None
+        return transfer
 
     def clear(self):
-        self.trans = []
+        self.trans = {}
 
     def isEmpty(self):
-        if len(self.trans) == 0:
-            True
-        else:
-            False
+        return len(self.trans)
 
 
