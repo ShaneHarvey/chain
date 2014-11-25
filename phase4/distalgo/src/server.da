@@ -74,18 +74,21 @@ class Server(process):
             output('Sending ping to master')
             send(('ping', bank_name), to=master)
 
+    def resend_pending(bank_name):
+        if is_tail:
+            # Resend transfer request to the new HEAD
+            pending = trans_sent.getPendingTransfers(bank_name)
+            for orig_trans in pending:
+                # Forward destTransfer request to the destination bank
+                output('RESENDING PENDING TRANSFER')
+                init_destTrans(bank_name, orig_trans)
+
     # Methods to update head/tail of other bank chains
     def receive(msg=('updateHead', (b, new_head)), from_=m):
         if m == master and b in banks:
             output('Updating head of bank=%s to server=%s' % (b, new_head))
             banks[b]['head'] = new_head
-            if is_tail:
-                # Resend transfer request to the new HEAD
-                pending = trans_sent.getPendingTransfers(b)
-                for orig_trans in pending:
-                    # Forward destTransfer request to the destination bank
-                    output('RESENDING PENDING TRANSFER')
-                    init_destTrans(b, orig_trans)
+            resend_pending(b)
 
     def receive(msg=('updateTail', (b, new_tail)), from_=m):
         if m == master and b in banks and b != bank:
@@ -157,6 +160,7 @@ class Server(process):
         extending = False
         successor = None
         is_tail = True
+        resend_pending(b)
 
     def receive(msg=('predecessorFailure', new_pred), from_=m):
         if m != master:
