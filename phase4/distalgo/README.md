@@ -1,7 +1,7 @@
 ##Dependencies
 Python 3.4.1 =======> https://www.python.org
 
-DistAlgo 1.0.0b9 ====> https://github.com/DistAlgo/distalgo/
+DistAlgo 1.0.0b10 ====> https://github.com/DistAlgo/distalgo/
 
 ##INSTRUCTIONS
 Just cd into the src directory and invoke the DistAlgo runtime on `main.da`
