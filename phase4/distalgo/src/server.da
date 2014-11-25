@@ -126,8 +126,7 @@ class Server(process):
         # Send new tail to master
         this_msg = 'doneExtending'
         log_recv(this_msg, old_tail)
-        mesg = ('newTail', bank_name)
-        log_send(mesg, master)
+        log_send(('newTail', bank_name), master)
         output('Currently acting as TAIL server.')
         is_tail = True
         predecessor = old_tail
@@ -170,8 +169,7 @@ class Server(process):
             sys.exit(1)
         # TODO: Send updates > last_seq to new_succ
         for i, update in enumerate(self.sent.updates(last_seq)):
-            fwd = ('fwdUpdate', last_seq + i + 1, update)
-            log_send(fwd, successor)
+            log_send(('fwdUpdate', last_seq + i + 1, update), successor)
 
     # End Methods for handling failure
 
@@ -211,6 +209,26 @@ class Server(process):
         log_recv(this_msg, p)
         process_update(this_msg, seq)
 
+    def receive(msg=('transfer', (reqid, account, amount, dest_bank, dest_account)), from_=p):
+        if not is_head:
+            output('IGNORING transfer request. Not acting as head.')
+            return
+        # Increment the SEQ number
+        seq = inc_seq()
+        this_msg = ('transfer', (reqid, account, amount, dest_bank, dest_account))
+        log_recv(this_msg, p)
+        process_update(this_msg, seq)
+
+    def receive(msg=('destTransfer', (reqid, account, amount, orig_bank)), from_=p):
+        if not is_head:
+            output('IGNORING transfer request. Not acting as head.')
+            return
+        # Increment the SEQ number
+        seq = inc_seq()
+        this_msg = ('destTransfer', (reqid, account, amount, orig_bank))
+        log_recv(this_msg, p)
+        process_update(this_msg, seq)
+
     def receive(msg=('fwdUpdate', seq, orig_update), from_=p):
         if is_head or p != predecessor:
             # invalid from_
@@ -229,12 +247,23 @@ class Server(process):
         if s != successor:
             output('Received ACK from invalid server')
             return
-        self.sent.remove(ack)
+        destTransfers = self.sent.remove(ack)
         if not is_head:
             log_send(('ACK', ack), predecessor)
+        else:
+            # For each destTrans send the reply to the source bank
+            for dt in destTransfers:
+                reqid, account, amount, orig_bank = dt[1]
+                send_destTransReply(reqid, orig_bank)
 
     def process_update(update, seq):
-        update_type, (reqid, account, amount) = update
+        update_type = update[0]
+        if update == 'transfer':
+            reqid, account, amount, dest_bank, dest_account = update[1]
+        elif update == 'destTransfer':
+            reqid, account, amount, orig_bank = update[1]
+        else:
+            reqid, account, amount = update[1]
         # check if this update is a duplicate or inconsistent
         reply = dup_or_incon(reqid, update, account)
         if not reply:
@@ -242,6 +271,10 @@ class Server(process):
                 outcome = deposit(account, amount)
             elif update_type == 'withdrawal':
                 outcome = withdrawal(account, amount)
+            elif update_type == 'transfer':
+                outcome = withdrawal(account, amount)
+            elif update_type == 'destTransfer':
+                outcome = deposit(account, amount)
             else:
                 output('update_type: %s not supported ' % update_type,
                        level=logging.ERROR)
@@ -250,7 +283,12 @@ class Server(process):
             # Save this update to our update history
             add_to_updates(reqid, update, reply)
         # forward the update
-        fwd_update(seq, update, reply, reqid[0])
+        if update == 'transfer':
+            fwd_transfer(seq, reqid, account, amount, dest_bank, dest_account, reply)
+        elif update == 'destTransfer':
+            fwd_destTrans(seq, update)
+        else:
+            fwd_update(seq, update, reply, reqid[0])
 
     def inc_seq():
         """Return SEQ++."""
@@ -285,11 +323,50 @@ class Server(process):
                 log_send(('ACK', seq), predecessor)
         else:
             # Forward the update to successor
-            fwd = ('fwdUpdate', seq, orig_msg)
-            log_send(fwd, successor)
+            log_send(('fwdUpdate', seq, orig_msg), successor)
         # Add updates to sent
         if not is_tail or extending:
             self.sent.add(seq, orig_msg)
+
+    def fwd_transfer(seq, reqid, account, amount, dest_bank, dest_account, reply):
+        if is_tail:
+            # Forward destTransfer request to the destination bank
+            dest_head = banks[dest_bank]['head']
+            if dest_head:
+                # Send the destTransfer to the head of the dest bank
+                log_send(('destTransfer', (reqid, dest_account, amount, bank_name)), dest_head)
+            else:
+                output('Transfer error: destination bank %s failed!' % dest_bank)
+        else:
+            # Forward the update to successor
+            log_send(('fwdUpdate', seq, orig_msg), successor)
+        # TODO: Add updates to sent transfers
+        if not is_tail or extending:
+            ###self.sent.add(seq, orig_msg)
+
+    def fwd_destTrans(seq, destTrans):
+        if is_tail:
+            # Reply to the client with simulated message loss
+            if predecessor:
+                log_send(('ACK', seq), predecessor)
+            else:
+                # Send the Reply to the Tail of the original bank
+                reqid, account, amount, orig_bank = destTrans[1]
+                send_destTransReply(reqid, orig_bank)
+        else:
+            # Forward the update to successor
+            log_send(('fwdUpdate', seq, destTrans), successor)
+        # Add updates to sent
+        if not is_tail or extending:
+            self.sent.add(seq, orig_msg)
+
+    def send_destTransReply(reqid, orig_bank):
+        # Get the current tail of the source bank
+        src_tail = banks[orig_bank]['tail']
+        if src_tail:
+            log_send(('transACK', reqid), src_tail)
+        else:
+            output('Transfer error: source bank %s has failed.', % orig_bank)
 
     def add_to_updates(reqid, request, reply):
         assert reqid not in updates, 'Error: request id %s already exists in updates' % str(reqid)
@@ -315,7 +392,6 @@ class Server(process):
                 if is_tail:
                     output('DUPLICATE REQUEST detected, resending original ' +
                            'reply to client.')
-
                 else:
                     output('DUPLICATE REQUEST detected, forwarding request ' +
                            'to successor')
@@ -401,9 +477,17 @@ class Sent:
         self.q.append(update)
 
     def remove(self, ack):
+        """
+        Removes updates with sequence # less or equal to ack and returns the
+        list of destTransfers that were removed.
+        """
         r = []
+        destTransfers = []
         while self.q and ack >= self.base:
-            self.q.pop()
+            removed = self.q.pop()
+            # Check if removed update was a destTransfer
+            if removed[0] == 'destTransfer':
+                destTransfers.append(removed)
             r.append(str(self.base))
             self.base += 1
         if r:
@@ -411,6 +495,7 @@ class Sent:
                          (ack, ', '.join(r)))
         else:
             logging.info('Received ACK=%s, nothing to remove from SENT' % ack)
+        return destTransfers
 
     def updates(self, ack):
         """Return a list of updates with seq starting at ack + 1."""
