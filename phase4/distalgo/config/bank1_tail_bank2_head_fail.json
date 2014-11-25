@@ -6,7 +6,7 @@
           "ip": "localhost",
           "port": 50000,
           "start_delay": 0,
-          "lifetime": -1,
+          "lifetime": 18,
           "receive": -1,
           "send": -1
         },
@@ -34,7 +34,7 @@
           "ip": "localhost",
           "port": 50003,
           "start_delay": 0,
-          "lifetime": -1,
+          "lifetime": 18,
           "receive": -1,
           "send": -1
         }
@@ -43,7 +43,7 @@
   },
   "clients": [
     {
-      "reply_timeout": 3,
+      "reply_timeout": 13,
       "request_retries": 3,
       "resend_head": false,
       "requests": [
@@ -63,7 +63,7 @@
         {
           "request": "balance",
           "bank": "TD",
-          "account": "0001",
+          "account": "0002",
           "seq_num": 2
         },
         {
@@ -84,7 +84,7 @@
         {
           "request": "balance",
           "bank": "TD",
-          "account": "0001",
+          "account": "0002",
           "seq_num": 5
         }
       ]
