@@ -17,6 +17,7 @@ class Server(process):
         self.is_head = not predecessor
         self.is_tail = not successor
         self.sent = Sent()
+        self.trans_sent = SentTransfer()
         self.SEQ = -1
         self.extending = False
         self.updates = dict()
@@ -172,6 +173,7 @@ class Server(process):
         for i, update in enumerate(self.sent.updates(last_seq)):
             fwd = ('fwdUpdate', last_seq + i + 1, update)
             log_send(fwd, successor)
+
 
     # End Methods for handling failure
 
@@ -421,3 +423,36 @@ class Sent:
 
     def clear(self):
         self.q = []
+
+
+class SentTransfer:
+    def __init__(self):
+        self.trans_base = 1 #transfer sequence number, ie the key in the dictionary
+        self.trans = [] #dictionary iteself
+
+    def add(self, t_seq, transfer):
+        if not self.trans:
+            self.trans_base = t_seq
+            self.trans_base += 1
+        if t_seq != self.trans_base + len(self.trans):
+            logging.error('Invalid Transfer SEQ=%s for sent transfer' %t_seq)
+            return
+        self.trans.append(transfer)
+
+    def remove(self, transfer_ack):
+        if transfer_ack in self.trans:
+            del self.trans[transfer_ack]
+            logging.info('Received Transfer ACK=%s removed Transfer SEQ %s from transfer set' %transfer_ack)
+        else:
+            logging.info('Received Transfer ACK=%s, noting to remove from Tranfer sent' %transfer_ack)
+
+    def clear(self):
+        self.trans = []
+
+    def isEmpty(self):
+        if len(self.trans) == 0:
+            True
+        else:
+            False
+
+
