@@ -16,7 +16,7 @@
           "start_delay": 0,
           "lifetime": -1,
           "receive": -1,
-          "send": 1
+          "send": 3
         }
       ]
     },
