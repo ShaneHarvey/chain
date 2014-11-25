@@ -45,33 +45,6 @@
           "bank": "Chase",
           "account": "0001",
           "seq_num": 1
-        },
-        {
-          "request": "balance",
-          "bank": "TD",
-          "account": "0002",
-          "seq_num": 2
-        },
-        {
-          "request": "transfer",
-          "bank": "Chase",
-          "account": "0001",
-          "amount": "100.00",
-          "dest_bank": "TD",
-          "dest_account":"0002",
-          "seq_num": 3
-        },
-        {
-          "request": "balance",
-          "bank": "Chase",
-          "account": "0001",
-          "seq_num": 5
-        },
-        {
-          "request": "balance",
-          "bank": "TD",
-          "account": "0002",
-          "seq_num": 6
         }
       ]
     }
