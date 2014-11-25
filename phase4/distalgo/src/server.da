@@ -258,6 +258,27 @@ class Server(process):
                 reqid, account, amount, orig_bank = dt[1]
                 send_destTransReply(reqid, orig_bank)
 
+    def receive(msg=('transACK', orig_seq), from_=source):
+        if not is_tail and source != successor:
+            output('IGNORE: Received transACK %s from invalid server %s' % (orig_seq, source))
+            return
+
+        if is_tail:
+            rreq = orig_seq
+            real_seq = trans_sent.getTransSeq(rreq)
+            trans_sent.remove(real_seq)
+            # Reply to client with reply from updates and send transACK
+            reply = get_prev_reply(rreq)
+            output('RECEIVED REPLY FROM DEST BANK. SENDING REPLY TO CLIENT')
+            log_send(reply, rreq[0])
+        if successor:
+            # remove transfer from sent
+            trans_sent.remove(orig_seq)
+            # Send transACK to the previous server in chain
+            log_send(('transACK', orig_seq), successor)
+
+
+
     def process_update(update, seq):
         update_type = update[0]
         if update == 'transfer':
@@ -331,6 +352,7 @@ class Server(process):
             self.sent.add(seq, orig_msg)
 
     def fwd_transfer(seq, reqid, account, amount, dest_bank, dest_account, reply):
+        orig_msg = ('transfer', (reqid, account, amount, dest_bank, dest_account))
         if is_tail:
             # Forward destTransfer request to the destination bank
             dest_head = banks[dest_bank]['head']
@@ -344,7 +366,7 @@ class Server(process):
             log_send(('fwdUpdate', seq, orig_msg), successor)
         # TODO: Add updates to sent transfers
         if not is_tail or extending:
-            ###self.sent.add(seq, orig_msg)
+            self.trans_sent.add(orig_msg)
 
     def fwd_destTrans(seq, destTrans):
         if is_tail:
@@ -353,22 +375,22 @@ class Server(process):
                 log_send(('ACK', seq), predecessor)
             else:
                 # Send the Reply to the Tail of the original bank
-                reqid, account, amount, orig_bank = destTrans[1]
-                send_destTransReply(reqid, orig_bank)
+                reqid, account, amount, orig_bank, orig_seq = destTrans[1]
+                send_destTransReply(orig_seq, orig_bank)
         else:
             # Forward the update to successor
             log_send(('fwdUpdate', seq, destTrans), successor)
         # Add updates to sent
         if not is_tail or extending:
-            self.sent.add(seq, orig_msg)
+            self.sent.add(seq, destTrans)
 
-    def send_destTransReply(reqid, orig_bank):
+    def send_destTransReply(orig_seq, orig_bank):
         # Get the current tail of the source bank
         src_tail = banks[orig_bank]['tail']
         if src_tail:
-            log_send(('transACK', reqid), src_tail)
+            log_send(('transACK', orig_seq), src_tail)
         else:
-            output('Transfer error: source bank %s has failed.', % orig_bank)
+            output('Transfer error: source bank %s has failed.' % orig_bank)
 
     def add_to_updates(reqid, request, reply):
         assert reqid not in updates, 'Error: request id %s already exists in updates' % str(reqid)
@@ -464,6 +486,7 @@ class Server(process):
             strbank.append('%s \t\t $%s' % (acc, strbal))
         output('\n'.join(strbank))
 
+
 class Sent:
 
     def __init__(self):
@@ -511,28 +534,41 @@ class Sent:
 
 
 class SentTransfer:
+
     def __init__(self):
-        self.trans_base = 1 #transfer sequence number, ie the key in the dictionary
-        self.trans = {} #dictionary itself
+        # transfer sequence number, ie the key in the dictionary
+        self.trans_base = 1
+        # dictionary itself
+        self.trans = {}
+        self.reqid_to_seq = {}
 
     def add(self, transfer):
-        self.trans_base += 1
-        self.trans[self.tans_base] = transfer
+        reqid = transfer[1][0]
+        if reqid not in self.reqid_to_seq:
+            self.trans_base += 1
+            self.trans[self.trans_base] = transfer
+            self.reqid_to_seq[reqid] = self.trans_base
 
     def remove(self, transfer_ack):
         if transfer_ack in self.trans:
             transfer = self.trans[transfer_ack]
+            # Delete the reqid to sequence mapping
+            del self.reqid_to_seq[transfer[1][0]]
             del self.trans[transfer_ack]
-            logging.info('Received Transfer ACK=%s removed Transfer SEQ %s from transfer set' %transfer_ack)
+            logging.info('Received Transfer ACK=%s removed Transfer SEQ %s from transfer set' % transfer_ack)
         else:
-            logging.info('Received Transfer ACK=%s, nothing to remove from Tranfer sent' %transfer_ack)
+            logging.info('Received Transfer ACK=%s, nothing to remove from Tranfer sent' % transfer_ack)
             transfer = None
         return transfer
+
+    def getTransSeq(self, rreq):
+        if rreq in self.reqid_to_seq:
+            return self.reqid_to_seq[rreq]
+        else:
+            return None
 
     def clear(self):
         self.trans = {}
 
     def isEmpty(self):
         return len(self.trans)
-
-
