@@ -79,12 +79,13 @@ class Server(process):
         if m == master and b in banks:
             output('Updating head of bank=%s to server=%s' % (b, new_head))
             banks[b]['head'] = new_head
-            # Resend transfer request to the new HEAD
-            pending = trans_sent.getPendingTransfers(b)
-            for orig_trans in pending:
-                # Forward destTransfer request to the destination bank
-                output('RESENDING PENDING TRANSFER')
-                init_destTrans(b, orig_trans)
+            if is_tail:
+                # Resend transfer request to the new HEAD
+                pending = trans_sent.getPendingTransfers(b)
+                for orig_trans in pending:
+                    # Forward destTransfer request to the destination bank
+                    output('RESENDING PENDING TRANSFER')
+                    init_destTrans(b, orig_trans)
 
     def receive(msg=('updateTail', (b, new_tail)), from_=m):
         if m == master and b in banks and b != bank:
@@ -491,13 +492,13 @@ class Server(process):
 
     def log_bank():
         output(bank_name + ' Bank State:')
-        output('ACCOUNT \t BALANCE')
+        output(bank_name + ' ACCOUNT \t BALANCE')
         for acc in sorted(bank.keys()):
             bal = bank[acc]
             strbal = '0.00' if bal == 0 else str(bal)
-            output('%s \t\t $%s' % (acc, strbal))
+            output(bank_name + ' %s \t $%s' % (acc, strbal))
         if not bank:
-            output('NO ACCOUNTS :(')
+            output(bank_name + ' NO ACCOUNTS :(')
 
 
 class Sent:

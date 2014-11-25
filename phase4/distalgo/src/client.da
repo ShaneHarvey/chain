@@ -223,6 +223,9 @@ class Client(process):
         if req_type == 'balance':
             output('Sending request: %s, get balance of account %s' %
                    (bank_n, account))
+        elif req_type == 'transfer':
+            output('Sending request: transfer $%s from %s Bank account %s, to %s Bank dest_account %s' %
+                   (req['amount'], bank_n, account, req['dest_bank'], req['dest_account']))
         else:
             amount = req['amount']
             output('Sending request: %s, %s $%s account %s' %
