@@ -167,6 +167,7 @@ class Master(process):
                     output('Internal server failed! Informing new successor=%s'
                            % new_succ)
                     send(('predecessorFailure', new_pred), to=new_succ)
+                prev = cur
             # Remove the failed servers
             chains[bank] = [chains[bank][i] for i in alive]
 

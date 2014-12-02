@@ -25,6 +25,14 @@
           "lifetime": 20,
           "receive": 5,
           "send": -1
+        },
+        {
+          "ip": "localhost",
+          "port": 50000,
+          "start_delay": 0,
+          "lifetime": 30,
+          "receive": -1,
+          "send": -1
         }
       ]
     }
